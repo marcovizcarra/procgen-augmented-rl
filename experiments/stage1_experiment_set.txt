@@ -1,0 +1,29 @@
+A practical Stage-1 experiment set (bigger, but still sane)
+
+Run this 12-pack on `coinrun-level_1_E`:
+
+Core
+1) none
+2) shift pad=4
+3) shift pad=8
+
+Scale
+4) shift4 + scale(0.9–1.1)
+5) shift4 + scale(0.8–1.2)
+
+Appearance
+6) shift4 + jitter(0.2)
+7) shift4 + jitter(0.4)
+
+Occlusion
+8) shift4 + cutout16
+9) shift4 + cutout24
+
+Corruptions
+10) shift4 + noise(0.02)
+11) shift4 + blur(3×3)
+
+Application strategy
+12) shift4 with p_aug=0.5
+
+Then take the top 3 from level_1 and re-run them on `coinrun-level_40_E` to confirm it’s not a fluke.
