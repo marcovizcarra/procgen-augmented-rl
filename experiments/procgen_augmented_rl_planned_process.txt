@@ -1,0 +1,209 @@
+Procgen-Augmented-RL — Planned Process (end-to-end)
+
+Project goal
+- Train policies for Procgen CoinRun using OFFLINE RL datasets.
+- Improve generalization (performance on unseen levels) using data augmentation and dataset-creation pipelines.
+- Compare: baseline offline training vs augmented offline training (and later, offline RL algorithms beyond BC).
+
+Core idea
+1) Start from an offline dataset (Gen-DGRL via TorchRL).
+2) Train a policy from that dataset (baseline: Behavior Cloning).
+3) Evaluate the learned policy by running it in the real CoinRun environment on:
+   - TRAIN levels (levels seen by the dataset / training distribution)
+   - TEST levels (held-out/unseen levels) to measure generalization
+4) Add data augmentations to the offline observations, and test whether generalization improves.
+5) Scale up experiments (more data, more diversity, stronger augmentation, better algorithms).
+
+Key artifacts we created/used
+- scripts/smoke_test_gendgrl.py
+  - Verifies Gen-DGRL loads correctly.
+  - Prints TensorDict structure, shapes/dtypes.
+  - Shows a small “dataframe-like” preview.
+  - Visualizes sample frames.
+
+- scripts/build_stage1_datasets.py
+  - “Build Stage-1 augmented offline datasets from Gen-DGRL (Procgen CoinRun).”
+  - Produces one dataset per augmentation variant (including baseline).
+  - Saves:
+    - compressed shard files (.npz) with standardized arrays
+    - per-variant sample images
+    - a comparison grid image
+    - manifest.json describing each dataset
+
+- scripts/train_bc_min.py (baseline trainer)
+  - Trains a minimal BC policy from the chosen dataset.
+  - Saves checkpoint(s) to runs/<exp_name>/...
+
+- scripts/eval_procgen.py (evaluation)
+  - Loads a checkpoint, runs policy for N episodes.
+  - Reports mean_return and std for TRAIN levels vs TEST levels.
+
+
+Dataset sources (offline)
+- Gen-DGRL datasets through TorchRL:
+  - Loaded with: torchrl.data.datasets.GenDGRLExperienceReplay(dataset_id, ...)
+  - Example dataset ids we used:
+    - coinrun-level_1_E  (low diversity; good for quick iteration)
+    - coinrun-level_40_E (higher diversity; better stress test)
+
+Output dataset format (our generated datasets)
+For each dataset variant folder:
+  data/stage1_datasets/<variant_name>/
+    manifest.json
+    shard_00000.npz
+    shard_00001.npz
+    ...
+    sample_obs.png
+
+Each shard_XXXXX.npz contains:
+- obs      uint8 (N, 3, 64, 64)
+- next_obs uint8 (N, 3, 64, 64)
+- action   int64 (N,)
+- reward   float32 (N,)
+- done     uint8 (N,)
+
+A single comparison image is also saved:
+- data/stage1_datasets/comparison_grid.png
+
+
+Stage 0 — Sanity checks
+0.1 Environment setup
+- Create conda env (environment.yml) and install dependencies.
+- Confirm Python + Torch + TorchRL work.
+- Confirm plotting works (matplotlib).
+
+0.2 Dataset sanity (smoke test)
+- Run smoke_test_gendgrl to ensure:
+  - dataset downloads / loads
+  - observation shapes (64x64x3 or 3x64x64) are handled
+  - actions/rewards/done look reasonable
+  - visualization displays meaningful frames
+
+
+Stage 1 — Build offline datasets (baseline + augmentations)
+1.1 Build baseline dataset (no augmentations)
+- Use scripts/build_stage1_datasets.py to create baseline_none.
+
+1.2 Stage-1 experiment set (bigger, but still sane)
+Run this 12-pack on coinrun-level_1_E:
+
+Core
+1) baseline_none (no aug)
+2) shift pad=4
+3) shift pad=8
+
+Scale
+4) shift4 + scale(0.9–1.1)
+5) shift4 + scale(0.8–1.2)
+
+Appearance
+6) shift4 + jitter(0.2)
+7) shift4 + jitter(0.4)
+
+Occlusion
+8) shift4 + cutout16
+9) shift4 + cutout24
+
+Corruptions
+10) shift4 + noise(0.02)
+11) shift4 + blur(3×3)
+
+Application strategy
+12) shift4 with p_aug=0.5
+
+After Stage-1 on level_1, take the TOP-3 augmentations and re-run them on:
+- coinrun-level_40_E
+to confirm results persist with more diversity.
+
+1.3 Visual verification
+- Compare sample_obs.png across variants.
+- Check the combined grid in comparison_grid.png.
+- Ensure shards exist and have correct shapes/dtypes.
+
+
+Stage 2 — Train a baseline policy (BC) and evaluate
+2.1 Training baseline
+- Train BC on baseline_none dataset variant.
+- Save checkpoint: runs/<exp_name>/bc_ckpt.pt
+
+2.2 Evaluation baseline
+- Evaluate on TRAIN vs TEST levels with eval_procgen.py:
+  - TRAIN levels: expected higher if overfitting to training distribution
+  - TEST levels: key generalization metric
+
+2.3 Repeat training/eval for each augmentation variant
+- For each variant dataset:
+  - Train BC from that dataset
+  - Run eval_procgen.py with same episode count and seeds (as consistent as possible)
+  - Log results in a table (variant, train_mean, train_std, test_mean, test_std)
+
+
+Stage 3 — Define generalization experiments (what “generalization” means here)
+Primary generalization target
+- Improve TEST performance (unseen levels) without harming TRAIN too much.
+
+Recommended evaluation protocol
+- Fix:
+  - number of evaluation episodes (e.g., 50, 100, 200)
+  - evaluation seeds (or a fixed seed list)
+  - same model architecture and training steps across variants
+- Report:
+  - train_mean_return, train_std_return
+  - test_mean_return, test_std_return
+  - (optional) median return, percentiles, success rate if defined
+
+A useful pattern to watch
+- If TRAIN increases but TEST does not: likely overfitting.
+- If TEST increases with modest TRAIN changes: improved robustness/generalization.
+
+
+Stage 4 — Dataset creation as a project deliverable
+Your project includes “creating a dataset”. The Stage-1 pipeline already does this:
+- It creates curated, standardized offline datasets for each augmentation regime.
+- These datasets are reusable (train later, share, compare, publish artifacts).
+
+Optional improvements to dataset creation pipeline
+- Store additional metadata per transition:
+  - episode_id / step_id
+  - level_id (if available)
+  - time index
+- Provide a unified loader for shards + manifest (streaming batches).
+- Export to Parquet as an alternative format (for easier inspection with DBeaver / DuckDB / pandas).
+
+
+Stage 5 — Beyond BC (future work / stretch)
+Once BC baseline + aug results are stable, explore offline RL algorithms, e.g.:
+- IQL (Implicit Q-Learning)
+- CQL (Conservative Q-Learning)
+- BCQ (Batch-Constrained Q-learning)
+…and compare whether augmentation helps them similarly.
+
+A strong research-y angle
+- Compare “augmentation as data creation” vs “augmentation as training-time regularization”:
+  - Pre-save augmented datasets (what we’re doing now)
+  - On-the-fly augmentation during training (no saved datasets)
+  - Multi-view or consistency regularization variants
+
+
+Suggested “tonight targets” (typical)
+- Confirm Stage-1 dataset generation works for coinrun-level_1_E at a small scale.
+- Train/eval BC baseline on baseline_none.
+- Train/eval BC on 1–2 augmentation variants (shift_pad4 is the main baseline augmentation).
+- Record results in a simple table.
+- Confirm you can reproduce train/test numbers reliably.
+
+
+Useful commands (examples)
+- Build datasets:
+  python -B scripts/build_stage1_datasets.py --dataset-id coinrun-level_1_E --out-root data/stage1_datasets --num-samples 20000 --batch-size 512 --shard-size 5000
+
+- Evaluate a trained policy:
+  python scripts/eval_procgen.py --ckpt runs/bc_min/bc_ckpt.pt --episodes 50
+
+
+End state (what “done” looks like)
+- You can generate baseline + multiple augmented offline datasets reliably.
+- You can train a BC policy from each dataset.
+- You can evaluate each trained policy on TRAIN vs TEST levels.
+- You can show a clear comparison that answers:
+  “Which augmentation(s) improve generalization on CoinRun, and by how much?”
