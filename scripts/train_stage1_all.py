@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """
-scripts/train_stage1_all.py
+scripts/train_stage1_all.py  (updated: run-group support)
 
-Train BC checkpoints for ALL Stage-1 dataset variants (baseline + augmentations).
+Train BC checkpoints for Stage-1 dataset variants (baseline + augmentations).
 
-Creates checkpoints that eval_stage1_all expects:
-  runs/bc_<variant>/bc_ckpt.pt
+Update:
+- By default, runs are stored under a subfolder based on the dataset used:
+    runs/<run_group>/bc_<variant>/bc_ckpt.pt
+  where run_group defaults to the *datasets-root folder name* (e.g. stage1_datasets_L40).
 
-Discovers variants under:
-  <datasets-root>/<variant>/manifest.json
-
-WHY THIS VERSION FIXES "NO OUTPUT":
-- The old version used subprocess.check_output(), which buffers output.
-- This version uses subprocess.Popen() and streams stdout+stderr live.
-- It also runs train_bc_min.py with Python "-u" (unbuffered) so progress bars/logs show.
+This keeps runs from different dataset builds separated automatically.
 
 Usage:
   python -B scripts/train_stage1_all.py \
-    --datasets-root data/stage1_datasets \
+    --datasets-root data/stage1_datasets_L40 \
     --train-steps 20000 \
     --batch-size 256 \
     --seed 0 \
-    --skip-existing \
-    --only baseline_none,shift_pad4
+    --skip-existing
+
+Then evaluate (matching run-group):
+  python -B scripts/eval_stage1_all.py \
+    --datasets-root data/stage1_datasets_L40 \
+    --episodes 200
 """
 
 import argparse
@@ -43,29 +43,6 @@ def discover_variants(datasets_root: Path) -> List[Path]:
     return sorted(out, key=lambda p: p.name)
 
 
-def stream_subprocess(cmd: List[str], log_path: Path) -> None:
-    """
-    Run a subprocess and stream stdout+stderr live to terminal.
-    Also tee everything to log_path.
-    """
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("w", encoding="utf-8") as f:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,  # line-buffered
-        )
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            print(line, end="")  # live
-            f.write(line)        # saved
-        proc.wait()
-        if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, cmd)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--datasets-root", default="data/stage1_datasets")
@@ -75,6 +52,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--runs-root", default="runs")
+    ap.add_argument("--run-group", default=None, help="Subfolder under runs-root (default: datasets-root folder name).")
     ap.add_argument("--skip-existing", action="store_true", help="Skip training if checkpoint already exists.")
     ap.add_argument("--only", default=None, help="Comma-separated list of variants to train.")
     args = ap.parse_args()
@@ -88,18 +66,18 @@ def main():
         allow = {x.strip() for x in args.only.split(",") if x.strip()}
         variants = [v for v in variants if v.name in allow]
         if not variants:
-            raise RuntimeError("After --only filter, no variants remain. Check names under datasets-root.")
+            raise RuntimeError("After --only filter, no variants remain.")
 
     runs_root = Path(args.runs_root)
-    runs_root.mkdir(parents=True, exist_ok=True)
+    run_group = args.run_group or datasets_root.name
 
     trained = []
     for vdir in variants:
         variant = vdir.name
-        run_name = f"bc_{variant}"
-        run_dir = runs_root / run_name
-        ckpt = run_dir / "bc_ckpt.pt"
-        log_path = run_dir / "train.log"
+        run_name = f"{run_group}/bc_{variant}"  # nested folder under runs/
+
+        ckpt = runs_root / run_name / "bc_ckpt.pt"
+        ckpt.parent.mkdir(parents=True, exist_ok=True)
 
         if args.skip_existing and ckpt.exists():
             print(f"[skip existing] {variant} -> {ckpt}")
@@ -107,7 +85,7 @@ def main():
             continue
 
         cmd = [
-            sys.executable, "-u", "scripts/train_bc_min.py",   # -u => unbuffered
+            sys.executable, "scripts/train_bc_min.py",
             "--dataset-root", str(vdir),
             "--run-name", run_name,
             "--steps", str(args.train_steps),
@@ -116,17 +94,24 @@ def main():
             "--seed", str(args.seed),
             "--device", str(args.device),
         ]
-
         print("\n$ " + " ".join(cmd), flush=True)
-        stream_subprocess(cmd, log_path)
+
+        # Stream output instead of capturing; fixes "no output until end" issues
+        ret = subprocess.call(cmd)
+        if ret != 0:
+            raise RuntimeError(f"Training failed for variant={variant} (exit code={ret}).")
 
         if not ckpt.exists():
             raise FileNotFoundError(f"Training finished but checkpoint not found: {ckpt}")
 
         trained.append({"variant": variant, "run_name": run_name, "ckpt": str(ckpt), "skipped": False})
-        (runs_root / "stage1_train_log.json").write_text(json.dumps(trained, indent=2), encoding="utf-8")
 
-    print(f"\nWrote: {runs_root / 'stage1_train_log.json'}")
+        # incremental log per group
+        log_path = runs_root / run_group / "stage1_train_log.json"
+        log_path.write_text(json.dumps(trained, indent=2), encoding="utf-8")
+
+    print(f"\nRun group: {run_group}")
+    print(f"Wrote: {runs_root / run_group / 'stage1_train_log.json'}")
     print("Done.")
 
 
