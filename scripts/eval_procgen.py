@@ -11,25 +11,93 @@ Usage:
 """
 
 import argparse
+import random
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import gym
 
+
+def set_global_seeds(seed: int) -> None:
+    """Seed Python, NumPy, and PyTorch for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def seed_env(env, seed: int):
+    """
+    Best-effort environment seeding across gym / gymnasium variants.
+    Returns the initial observation if reset(seed=...) is supported, else None.
+    """
+    try:
+        out = env.reset(seed=seed)
+        return out[0] if isinstance(out, tuple) else out
+    except TypeError:
+        pass
+
+    try:
+        env.seed(seed)
+    except Exception:
+        pass
+
+    try:
+        env.action_space.seed(seed)
+    except Exception:
+        pass
+
+    try:
+        env.observation_space.seed(seed)
+    except Exception:
+        pass
+
+    return None
+
+
 def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
     """
-    obs from procgen is usually HWC uint8 (64,64,3).
-    Convert to BCHW float32 in [0,1].
+    Convert Procgen observation(s) to BCHW float32 in [0,1].
+
+    Supported input shapes:
+    - HWC   -> BCHW
+    - CHW   -> BCHW
+    - BHWC  -> BCHW
+    - BCHW  -> BCHW
     """
     x = torch.from_numpy(obs)
-    if x.ndim == 3 and x.shape[-1] == 3:     # HWC
-        x = x.permute(2, 0, 1)               # CHW
-    elif x.ndim == 3 and x.shape[0] == 3:    # already CHW
-        pass
+
+    if x.ndim == 3:
+        # Single observation
+        if x.shape[-1] == 3:          # HWC
+            x = x.permute(2, 0, 1).unsqueeze(0)   # -> BCHW
+        elif x.shape[0] == 3:         # CHW
+            x = x.unsqueeze(0)                    # -> BCHW
+        else:
+            raise ValueError(f"Unexpected 3D obs shape: {tuple(obs.shape)}")
+
+    elif x.ndim == 4:
+        # Batch of observations
+        if x.shape[-1] == 3:          # BHWC
+            x = x.permute(0, 3, 1, 2)             # -> BCHW
+        elif x.shape[1] == 3:         # BCHW
+            pass
+        else:
+            raise ValueError(f"Unexpected 4D obs shape: {tuple(obs.shape)}")
     else:
-        raise ValueError(f"Unexpected obs shape: {obs.shape}")
-    return x.unsqueeze(0).float() / 255.0    # BCHW
+        raise ValueError(f"Unexpected obs rank/shape: ndim={x.ndim}, shape={tuple(obs.shape)}")
+
+    if x.dtype == torch.uint8:
+        x = x.float() / 255.0
+    else:
+        x = x.float()
+        # If values appear to be 0..255, normalize them
+        if x.max() > 1.0:
+            x = x / 255.0
+
+    return x
 
 
 class SmallCNN(nn.Module):
@@ -66,12 +134,11 @@ class CNNPolicy(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)   # -> 15x15
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)  # -> 6x6
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)  # -> 4x4 (64*4*4=1024)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)  # -> 4x4
         self.fc = nn.Linear(64 * 4 * 4, hidden)
         self.head = nn.Linear(hidden, n_actions)
 
     def forward(self, x):
-        # accept uint8 or float
         if x.dtype == torch.uint8:
             x = x.float() / 255.0
         x = F.relu(self.conv1(x))
@@ -82,6 +149,15 @@ class CNNPolicy(nn.Module):
         return self.head(x)
 
 
+def _strip_module_prefix(sd: dict) -> dict:
+    """Handle checkpoints saved from DataParallel: module.xxx -> xxx"""
+    if not sd:
+        return sd
+    if all(k.startswith("module.") for k in sd.keys()):
+        return {k[len("module."):]: v for k, v in sd.items()}
+    return sd
+
+
 def _extract_state_dict(ckpt: dict) -> dict:
     """
     Accept common checkpoint formats:
@@ -89,10 +165,12 @@ def _extract_state_dict(ckpt: dict) -> dict:
     """
     for k in ("model_state_dict", "state_dict", "model"):
         if k in ckpt and isinstance(ckpt[k], dict):
-            return ckpt[k]
+            return _strip_module_prefix(ckpt[k])
+
     # If the checkpoint itself looks like a raw state_dict
-    if all(isinstance(v, torch.Tensor) for v in ckpt.values()):
-        return ckpt
+    if isinstance(ckpt, dict) and all(isinstance(v, torch.Tensor) for v in ckpt.values()):
+        return _strip_module_prefix(ckpt)
+
     raise KeyError("Could not find a model state_dict in checkpoint.")
 
 
@@ -112,12 +190,13 @@ def build_model_for_checkpoint(ckpt: dict, device: torch.device) -> nn.Module:
     if any(k.startswith("net.") for k in sd.keys()):
         model = SmallCNN(n_actions=n_actions).to(device)
     elif "conv1.weight" in sd:
-        # hidden dimension can be inferred from fc.weight rows if present
         hidden = int(sd["fc.weight"].shape[0]) if "fc.weight" in sd else 512
         model = CNNPolicy(n_actions=n_actions, hidden=hidden).to(device)
     else:
         first_keys = list(sd.keys())[:12]
-        raise RuntimeError(f"Unknown checkpoint format; cannot infer model. First keys: {first_keys}")
+        raise RuntimeError(
+            f"Unknown checkpoint format; cannot infer model. First keys: {first_keys}"
+        )
 
     model.load_state_dict(sd, strict=True)
     model.eval()
@@ -148,6 +227,7 @@ def run_eval(env, model, device, episodes):
 
     while len(returns) < episodes:
         x = to_chw_float01(obs).to(device)
+
         with torch.no_grad():
             logits = model(x)
             action = int(torch.argmax(logits, dim=-1).item())
@@ -176,6 +256,7 @@ def main():
     p.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
     args = p.parse_args()
 
+    set_global_seeds(args.seed)
     device = torch.device(args.device)
 
     ckpt = torch.load(args.ckpt, map_location=device)
@@ -194,14 +275,21 @@ def main():
         distribution_mode=args.distribution_mode,
     )
 
-    mean_tr, std_tr = run_eval(env_train, model, device, args.episodes)
-    mean_te, std_te = run_eval(env_test, model, device, args.episodes)
+    try:
+        # Best-effort seeding
+        obs_train0 = seed_env(env_train, args.seed)
+        obs_test0 = seed_env(env_test, args.seed + 1)
 
-    print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
-    print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
+        # If reset(seed=...) already returned an obs, no problem; run_eval will reset again.
+        # Keeping run_eval unchanged for simplicity.
+        mean_tr, std_tr = run_eval(env_train, model, device, args.episodes)
+        mean_te, std_te = run_eval(env_test, model, device, args.episodes)
 
-    env_train.close()
-    env_test.close()
+        print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
+        print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
+    finally:
+        env_train.close()
+        env_test.close()
 
 
 if __name__ == "__main__":
