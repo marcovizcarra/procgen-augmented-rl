@@ -23,6 +23,7 @@ Checkpoint format includes multiple common keys for compatibility:
 import argparse
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, Iterator, List, Tuple, Optional
 
@@ -30,6 +31,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+try:
+    from tqdm.auto import trange  # nice progress bar if installed
+except Exception:
+    trange = None
 
 try:
     from torchrl.data.datasets import GenDGRLExperienceReplay
@@ -134,6 +140,17 @@ def pick_device(device_arg: str) -> torch.device:
     return torch.device("cpu")
 
 
+def _fmt_time(seconds: float) -> str:
+    seconds = max(0.0, float(seconds))
+    m, s = divmod(int(seconds + 0.5), 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"{h:d}h{m:02d}m{s:02d}s"
+    if m > 0:
+        return f"{m:d}m{s:02d}s"
+    return f"{s:d}s"
+
+
 def main():
     p = argparse.ArgumentParser()
     src = p.add_mutually_exclusive_group(required=False)
@@ -173,14 +190,28 @@ def main():
         data_iter = iter_gendgrl_batches(dataset_id, batch_size=args.batch_size, seed=args.seed, download=True)
         data_desc = f"GenDGRL({dataset_id})"
 
+    print(f"Device: {device}")
+    print(f"Run: {args.run_name} | steps={args.steps} | batch_size={args.batch_size} | lr={args.lr} | seed={args.seed}")
+    print(f"Data: {data_desc}")
+
     # Model/opt
     model = CNNPolicy(n_actions=args.n_actions).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Train loop
     model.train()
-    losses = []
-    for step in range(1, args.steps + 1):
+    losses_window: List[float] = []
+    acc_window: List[float] = []
+
+    start_time = time.time()
+    last_fallback_print = start_time
+
+    if trange is not None:
+        iterator = trange(1, args.steps + 1, desc=f"BC[{args.run_name}]", dynamic_ncols=True)
+    else:
+        iterator = range(1, args.steps + 1)
+
+    for step in iterator:
         obs_u8, act = next(data_iter)
         obs_t = torch.from_numpy(obs_u8).to(device)            # uint8
         act_t = torch.from_numpy(act).to(device).long()
@@ -192,10 +223,42 @@ def main():
         loss.backward()
         opt.step()
 
-        losses.append(float(loss.item()))
-        if step % args.log_every == 0:
-            avg = sum(losses[-args.log_every:]) / args.log_every
-            print(f"step {step:6d}/{args.steps}  loss={avg:.4f}  data={data_desc}  device={device}")
+        # metrics
+        losses_window.append(float(loss.item()))
+        with torch.no_grad():
+            pred = logits.argmax(dim=-1)
+            acc = (pred == act_t).float().mean().item()
+        acc_window.append(float(acc))
+
+        # progress updates
+        if step % args.log_every == 0 or step == 1 or step == args.steps:
+            avg_loss = sum(losses_window[-args.log_every:]) / min(args.log_every, len(losses_window))
+            avg_acc = sum(acc_window[-args.log_every:]) / min(args.log_every, len(acc_window))
+            elapsed = time.time() - start_time
+            steps_per_s = step / max(1e-9, elapsed)
+            eta = (args.steps - step) / max(1e-9, steps_per_s)
+
+            if trange is not None:
+                # update tqdm bar postfix (nice and compact)
+                iterator.set_postfix(
+                    loss=f"{avg_loss:.4f}",
+                    acc=f"{avg_acc:.3f}",
+                    sps=f"{steps_per_s:.1f}",
+                    eta=_fmt_time(eta),
+                    device=str(device),
+                )
+            else:
+                # fallback: print periodic single-line progress
+                now = time.time()
+                if (now - last_fallback_print) > 1.0 or step in (1, args.steps):
+                    pct = 100.0 * step / args.steps
+                    print(
+                        f"[{pct:6.2f}%] step {step:6d}/{args.steps}  "
+                        f"loss={avg_loss:.4f}  acc={avg_acc:.3f}  "
+                        f"sps={steps_per_s:.1f}  eta={_fmt_time(eta)}",
+                        flush=True,
+                    )
+                    last_fallback_print = now
 
     # Save
     run_dir = Path("runs") / args.run_name
@@ -229,9 +292,10 @@ def main():
         "n_actions": args.n_actions,
         "data_source": data_desc,
         "ckpt_path": str(ckpt_path),
+        "elapsed_sec": time.time() - start_time,
     }
     (run_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print(f"Saved checkpoint: {ckpt_path}")
+    print(f"Saved checkpoint: {ckpt_path} (elapsed {_fmt_time(cfg['elapsed_sec'])})")
 
 
 if __name__ == "__main__":
