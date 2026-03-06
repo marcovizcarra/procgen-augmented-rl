@@ -1,0 +1,145 @@
+Stage-1 Experiments — Procgen CoinRun Offline BC + Augmentations
+============================================================
+
+Goal
+----
+Run a consistent train+eval pipeline for each Stage-1 dataset variant (baseline + augmentations),
+and compare generalization performance on held-out levels.
+
+Datasets in your repo (from the screenshot)
+-------------------------------------------
+You have TWO dataset roots (each contains the same variant set):
+
+A) data/stage1_datasets
+   - Built from Gen-DGRL coinrun-level_1_E (low diversity; very fast iteration)
+   - Recommended eval split:
+       TRAIN: start_level=0, num_levels=1
+       TEST : start_level=1, num_levels=500
+
+B) data/stage1_datasets_L40
+   - Built from Gen-DGRL coinrun-level_40_E (more diversity; better generalization signal)
+   - Recommended eval split:
+       TRAIN: start_level=0,  num_levels=40
+       TEST : start_level=40, num_levels=500
+
+Variant set (experiments to run)
+--------------------------------
+Each variant corresponds to a pre-generated offline dataset you already created:
+
+1) baseline_none
+   - No augmentation (raw observations)
+
+2) shift_pad4
+   - Random translation using padding=4 (spatial shift robustness)
+
+3) shift_pad8
+   - Random translation using padding=8 (stronger spatial shift)
+
+4) shift4_blur3x3
+   - shift pad=4 + blur (3x3) (robustness to mild defocus / sensor blur)
+
+5) shift4_cutout16
+   - shift pad=4 + cutout 16x16 (occlusion robustness)
+
+6) shift4_cutout24
+   - shift pad=4 + cutout 24x24 (stronger occlusion)
+
+7) shift4_jitter_0p2
+   - shift pad=4 + color jitter strength 0.2 (appearance robustness)
+
+8) shift4_jitter_0p4
+   - shift pad=4 + color jitter strength 0.4 (stronger appearance change)
+
+9) shift4_noise_0p02
+   - shift pad=4 + Gaussian noise sigma=0.02 (sensor noise robustness)
+
+10) shift4_paug_0p5
+   - shift pad=4 applied with probability p=0.5 (stochastic augmentation mix)
+
+11) shift4_scale_0p8_1p2
+   - shift pad=4 + scale jitter (0.8–1.2) (strong zoom robustness)
+
+12) shift4_scale_0p9_1p1
+   - shift pad=4 + scale jitter (0.9–1.1) (milder zoom; often the “sweet spot”)
+
+What “success” looks like
+-------------------------
+Primary: Higher TEST mean return (unseen levels) vs baseline_none, with similar or slightly lower TRAIN.
+Secondary: Smaller generalization gap (TEST - TRAIN), or better TEST at same TRAIN.
+
+Recommended run settings (fast but meaningful)
+----------------------------------------------
+Training (BC):
+- train_steps: 20k (quick baseline)
+- batch_size: 256
+- lr: 3e-4
+- seed: 0 (later repeat seeds 1,2 for confirmation)
+
+Evaluation:
+- episodes: 200 (fast enough; later confirm best runs at 1000)
+- distribution_mode: hard
+
+Commands (train + eval) — run ALL variants in each dataset root
+--------------------------------------------------------------
+
+IMPORTANT:
+- Use the progress-logging pipeline script you have:
+    scripts/train_eval_stage1.py
+  (the version that tees logs to terminal + files)
+
+1) Run ALL variants for L40 (recommended main comparison)
+---------------------------------------------------------
+python -B scripts/train_eval_stage1.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
+
+2) Run ALL variants for level_1 (quick iteration / sanity)
+----------------------------------------------------------
+python -B scripts/train_eval_stage1.py \
+  --datasets-root data/stage1_datasets \
+  --runs-root runs \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 1 \
+  --test_start 1 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
+
+Where results will be written
+-----------------------------
+For each datasets_root, outputs are grouped automatically by folder name:
+
+runs/stage1_datasets/stage1_train_eval_summary/...
+runs/stage1_datasets_L40/stage1_train_eval_summary/...
+
+Inside each summary folder:
+- results.json / results.csv / results.md  (aggregate leaderboard)
+- variants/<variant>.json + variants/<variant>.md  (per-variant summaries)
+- logs/<variant>_train.log and logs/<variant>_eval.log (full stdout for debugging)
+
+Optional “confirm the winner”
+-----------------------------
+After you see the best variant on L40, re-run just those with more eval episodes:
+
+python -B scripts/train_eval_stage1.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --only baseline_none,shift4_scale_0p9_1p1 \
+  --runs-root runs \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr 3e-4 \
+  --episodes 1000 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
