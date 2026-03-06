@@ -1,32 +1,45 @@
 #!/usr/bin/env python3
 """
-scripts/eval_stage1_all.py
+scripts/eval_stage1_all.py  (updated: run-group / dataset-folder support)
 
-Evaluate ALL Stage-1 datasets (baseline + augmentation variants) by running the
-existing evaluator: scripts/eval_procgen.py, and save a summary table.
+Evaluate ALL Stage-1 dataset variants (baseline + augmentation variants) by running
+the existing evaluator: scripts/eval_procgen.py, and save a summary table.
 
-This script does NOT train anything. It assumes you already trained a checkpoint
-per variant (e.g., with scripts/sweep_stage1_bc.py or manual training).
+NEW: Run-group (dataset-folder) support
+- If you are organizing runs by dataset folder (recommended), e.g.:
+    runs/stage1_datasets_L40/bc_<variant>/bc_ckpt.pt
 
-Default checkpoint convention (matches sweep_stage1_bc.py):
-  runs/bc_<variant>/bc_ckpt.pt
+  then this script will find checkpoints under:
+    runs/<run_group>/bc_<variant>/bc_ckpt.pt
+
+  where:
+    run_group defaults to the datasets-root folder name, i.e.
+      datasets-root = data/stage1_datasets_L40  -> run_group = stage1_datasets_L40
+
+- Legacy layout is still supported (fallback):
+    runs/bc_<variant>/bc_ckpt.pt
 
 It will:
 - discover variants under --datasets-root (folders with manifest.json)
-- find each variant's checkpoint
-- run: python scripts/eval_procgen.py --ckpt <ckpt> --episodes <N>
+- find each variant's checkpoint (grouped, then legacy)
+- run: python scripts/eval_procgen.py --ckpt <ckpt> --episodes <N> [extra args...]
 - parse TRAIN/TEST mean/std from stdout
 - save:
     <out-dir>/results.csv
     <out-dir>/results.json
     <out-dir>/results.md   (nice markdown table)
 
-Usage:
-  python scripts/eval_stage1_all.py \
-    --datasets-root data/stage1_datasets \
+Usage (grouped, recommended):
+  python -B scripts/eval_stage1_all.py \
+    --datasets-root data/stage1_datasets_L40 \
     --runs-root runs \
-    --episodes 50 \
-    --out-dir runs/stage1_eval_summary
+    --episodes 200
+
+This writes by default to:
+  runs/stage1_datasets_L40/stage1_eval_summary
+
+Override output location:
+  --out-dir runs/stage1_datasets_L40/stage1_eval_summary_seed0
 
 Optional:
 - evaluate only some variants:
@@ -60,9 +73,9 @@ TEST_RE = re.compile(
 
 def run_eval(ckpt: Path, episodes: int, extra_args: List[str]) -> str:
     cmd = [sys.executable, "scripts/eval_procgen.py", "--ckpt", str(ckpt), "--episodes", str(episodes)] + extra_args
-    print("\n$ " + " ".join(cmd))
+    print("\n$ " + " ".join(cmd), flush=True)
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-    print(out)
+    print(out, flush=True)
     return out
 
 
@@ -100,14 +113,28 @@ def discover_variants(datasets_root: Path) -> List[str]:
     return sorted(vars_)
 
 
-def find_ckpt(runs_root: Path, variant: str) -> Optional[Path]:
+def find_ckpt(runs_root: Path, run_group: str, variant: str) -> Optional[Path]:
     """
-    Try a few common patterns:
-      runs/bc_<variant>/bc_ckpt.pt   (sweep_stage1_bc.py)
-      runs/bc_<variant>/ckpt.pt      (alt)
-      runs/<variant>/bc_ckpt.pt      (alt)
+    Try a few common patterns.
+
+    NEW grouped (preferred):
+      runs/<run_group>/bc_<variant>/bc_ckpt.pt
+      runs/<run_group>/bc_<variant>/ckpt.pt
+      runs/<run_group>/<variant>/bc_ckpt.pt
+
+    LEGACY (fallback):
+      runs/bc_<variant>/bc_ckpt.pt
+      runs/bc_<variant>/ckpt.pt
+      runs/<variant>/bc_ckpt.pt
     """
+    group_root = runs_root / run_group
+
     candidates = [
+        # grouped
+        group_root / f"bc_{variant}" / "bc_ckpt.pt",
+        group_root / f"bc_{variant}" / "ckpt.pt",
+        group_root / variant / "bc_ckpt.pt",
+        # legacy
         runs_root / f"bc_{variant}" / "bc_ckpt.pt",
         runs_root / f"bc_{variant}" / "ckpt.pt",
         runs_root / variant / "bc_ckpt.pt",
@@ -116,13 +143,14 @@ def find_ckpt(runs_root: Path, variant: str) -> Optional[Path]:
         if c.exists():
             return c
 
-    # fallback: search for directories containing variant
-    if runs_root.exists():
-        for d in runs_root.iterdir():
-            if d.is_dir() and variant in d.name:
-                c = d / "bc_ckpt.pt"
-                if c.exists():
-                    return c
+    # fallback: search for directories containing variant (grouped then legacy)
+    for root in [group_root, runs_root]:
+        if root.exists():
+            for d in root.iterdir():
+                if d.is_dir() and variant in d.name:
+                    c = d / "bc_ckpt.pt"
+                    if c.exists():
+                        return c
     return None
 
 
@@ -158,9 +186,18 @@ def to_markdown_table(rows: List[Dict]) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--datasets-root", default="data/stage1_datasets", help="Folder containing variant subfolders with manifest.json.")
-    ap.add_argument("--runs-root", default="runs", help="Folder containing run subfolders with checkpoints.")
+    ap.add_argument("--runs-root", default="runs", help="Base folder containing run subfolders with checkpoints.")
+    ap.add_argument(
+        "--run-group",
+        default=None,
+        help="Subfolder under --runs-root to use (default: datasets-root folder name, e.g. stage1_datasets_L40).",
+    )
     ap.add_argument("--episodes", type=int, default=50)
-    ap.add_argument("--out-dir", default="runs/stage1_eval_summary")
+    ap.add_argument(
+        "--out-dir",
+        default=None,
+        help="Where to write results (default: runs/<run_group>/stage1_eval_summary).",
+    )
     ap.add_argument("--only", default=None, help="Comma-separated list of variants to evaluate.")
     ap.add_argument("--skip-missing", action="store_true", help="Skip variants with missing checkpoints instead of failing.")
     ap.add_argument("--extra-eval-args", default="", help='Extra args forwarded to eval_procgen.py, e.g. "--deterministic".')
@@ -168,7 +205,14 @@ def main():
 
     datasets_root = Path(args.datasets_root)
     runs_root = Path(args.runs_root)
-    out_dir = Path(args.out_dir)
+
+    run_group = args.run_group or datasets_root.name
+
+    # Ensure the group folder exists (so outputs go where you expect)
+    group_root = runs_root / run_group
+    group_root.mkdir(parents=True, exist_ok=True)
+
+    out_dir = Path(args.out_dir) if args.out_dir else (group_root / "stage1_eval_summary")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     variants = discover_variants(datasets_root)
@@ -185,9 +229,13 @@ def main():
 
     rows: List[Dict] = []
     for v in variants:
-        ckpt = find_ckpt(runs_root, v)
+        ckpt = find_ckpt(runs_root, run_group, v)
         if ckpt is None:
-            msg = f"[missing ckpt] variant={v}  (expected under {runs_root}/bc_{v}/bc_ckpt.pt)"
+            msg = (
+                f"[missing ckpt] variant={v}\n"
+                f"  expected (grouped): {runs_root}/{run_group}/bc_{v}/bc_ckpt.pt\n"
+                f"  expected (legacy) : {runs_root}/bc_{v}/bc_ckpt.pt"
+            )
             if args.skip_missing:
                 print(msg)
                 continue
@@ -205,8 +253,7 @@ def main():
         # incremental save
         (out_dir / "results.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
-    # Sort by TEST mean (descending)
-    rows_sorted = sorted(rows, key=lambda r: r["test_mean"], reverse=True)
+    rows_sorted = sorted(rows, key=lambda r: r["test_mean"], reverse=True) if rows else []
 
     # CSV
     csv_path = out_dir / "results.csv"
@@ -220,7 +267,8 @@ def main():
     md_path = out_dir / "results.md"
     md_path.write_text(to_markdown_table(rows_sorted), encoding="utf-8")
 
-    print(f"\nSaved CSV: {csv_path}")
+    print(f"\nRun group: {run_group}")
+    print(f"Saved CSV: {csv_path}")
     print(f"Saved JSON: {out_dir / 'results.json'}")
     print(f"Saved MD : {md_path}")
 
