@@ -12,11 +12,17 @@ Usage:
 
 import argparse
 import random
+import time
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import gym
+
+try:
+    from tqdm.auto import tqdm
+except Exception:
+    tqdm = None
 
 
 def set_global_seeds(seed: int) -> None:
@@ -70,7 +76,6 @@ def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
     x = torch.from_numpy(obs)
 
     if x.ndim == 3:
-        # Single observation
         if x.shape[-1] == 3:          # HWC
             x = x.permute(2, 0, 1).unsqueeze(0)   # -> BCHW
         elif x.shape[0] == 3:         # CHW
@@ -79,7 +84,6 @@ def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
             raise ValueError(f"Unexpected 3D obs shape: {tuple(obs.shape)}")
 
     elif x.ndim == 4:
-        # Batch of observations
         if x.shape[-1] == 3:          # BHWC
             x = x.permute(0, 3, 1, 2)             # -> BCHW
         elif x.shape[1] == 3:         # BCHW
@@ -93,7 +97,6 @@ def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
         x = x.float() / 255.0
     else:
         x = x.float()
-        # If values appear to be 0..255, normalize them
         if x.max() > 1.0:
             x = x / 255.0
 
@@ -101,12 +104,7 @@ def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
 
 
 class SmallCNN(nn.Module):
-    """
-    Original eval architecture:
-    - net = conv/relu stack + flatten
-    - head maps flattened features -> actions
-    State dict keys look like: net.0.weight, net.2.weight, ..., head.weight
-    """
+    """Original eval architecture (net.* + head.* state_dict keys)."""
     def __init__(self, n_actions=15):
         super().__init__()
         self.net = nn.Sequential(
@@ -117,7 +115,7 @@ class SmallCNN(nn.Module):
         )
         with torch.no_grad():
             dummy = torch.zeros(1, 3, 64, 64)
-            feat_dim = self.net(dummy).shape[-1]  # typically 1024
+            feat_dim = self.net(dummy).shape[-1]
         self.head = nn.Linear(feat_dim, n_actions)
 
     def forward(self, x):
@@ -125,16 +123,12 @@ class SmallCNN(nn.Module):
 
 
 class CNNPolicy(nn.Module):
-    """
-    Matches scripts/train_bc_min.py checkpoints:
-    conv1/conv2/conv3 + fc + head
-    State dict keys look like: conv1.weight, conv2.weight, conv3.weight, fc.weight, head.weight
-    """
+    """Matches scripts/train_bc_min.py checkpoints (conv1/2/3 + fc + head keys)."""
     def __init__(self, n_actions=15, hidden=512):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)   # -> 15x15
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)  # -> 6x6
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)  # -> 4x4
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         self.fc = nn.Linear(64 * 4 * 4, hidden)
         self.head = nn.Linear(hidden, n_actions)
 
@@ -150,7 +144,6 @@ class CNNPolicy(nn.Module):
 
 
 def _strip_module_prefix(sd: dict) -> dict:
-    """Handle checkpoints saved from DataParallel: module.xxx -> xxx"""
     if not sd:
         return sd
     if all(k.startswith("module.") for k in sd.keys()):
@@ -159,18 +152,11 @@ def _strip_module_prefix(sd: dict) -> dict:
 
 
 def _extract_state_dict(ckpt: dict) -> dict:
-    """
-    Accept common checkpoint formats:
-      ckpt["model_state_dict"], ckpt["state_dict"], ckpt["model"], or raw state_dict.
-    """
     for k in ("model_state_dict", "state_dict", "model"):
         if k in ckpt and isinstance(ckpt[k], dict):
             return _strip_module_prefix(ckpt[k])
-
-    # If the checkpoint itself looks like a raw state_dict
     if isinstance(ckpt, dict) and all(isinstance(v, torch.Tensor) for v in ckpt.values()):
         return _strip_module_prefix(ckpt)
-
     raise KeyError("Could not find a model state_dict in checkpoint.")
 
 
@@ -186,7 +172,6 @@ def build_model_for_checkpoint(ckpt: dict, device: torch.device) -> nn.Module:
     sd = _extract_state_dict(ckpt)
     n_actions = _infer_n_actions(ckpt, sd)
 
-    # Determine which architecture to instantiate based on key patterns.
     if any(k.startswith("net.") for k in sd.keys()):
         model = SmallCNN(n_actions=n_actions).to(device)
     elif "conv1.weight" in sd:
@@ -194,9 +179,7 @@ def build_model_for_checkpoint(ckpt: dict, device: torch.device) -> nn.Module:
         model = CNNPolicy(n_actions=n_actions, hidden=hidden).to(device)
     else:
         first_keys = list(sd.keys())[:12]
-        raise RuntimeError(
-            f"Unknown checkpoint format; cannot infer model. First keys: {first_keys}"
-        )
+        raise RuntimeError(f"Unknown checkpoint format; cannot infer model. First keys: {first_keys}")
 
     model.load_state_dict(sd, strict=True)
     model.eval()
@@ -210,7 +193,6 @@ def reset_env(env):
 
 def step_env(env, action):
     out = env.step(action)
-    # gymnasium returns 5 items; gym returns 4
     if len(out) == 5:
         obs, r, term, trunc, info = out
         done = bool(term or trunc)
@@ -220,25 +202,58 @@ def step_env(env, action):
     return obs, float(r), done, info
 
 
-def run_eval(env, model, device, episodes):
+def run_eval(env, model, device, episodes: int, desc: str = "", progress: bool = True, print_every: int = 25):
+    """
+    Evaluate policy for N episodes with a progress indicator.
+    """
     returns = []
     obs = reset_env(env)
     ep_ret = 0.0
+    total_steps = 0
+    t0 = time.time()
+
+    use_tqdm = progress and (tqdm is not None)
+    pbar = None
+    if use_tqdm:
+        pbar = tqdm(total=episodes, desc=desc or "eval", dynamic_ncols=True)
+    last_print = time.time()
 
     while len(returns) < episodes:
         x = to_chw_float01(obs).to(device)
-
         with torch.no_grad():
             logits = model(x)
             action = int(torch.argmax(logits, dim=-1).item())
 
         obs, r, done, _ = step_env(env, action)
         ep_ret += r
+        total_steps += 1
 
         if done:
             returns.append(ep_ret)
+
+            # update progress
+            if pbar is not None:
+                elapsed = time.time() - t0
+                mean_ret = float(np.mean(returns))
+                sps = total_steps / max(1e-9, elapsed)
+                pbar.update(1)
+                pbar.set_postfix(mean=f"{mean_ret:.2f}", last=f"{ep_ret:.2f}", sps=f"{sps:.0f}")
+            else:
+                if progress:
+                    # fallback periodic prints
+                    now = time.time()
+                    if (len(returns) % print_every == 0) or (now - last_print > 5.0):
+                        elapsed = now - t0
+                        mean_ret = float(np.mean(returns))
+                        sps = total_steps / max(1e-9, elapsed)
+                        print(f"[{desc}] episodes {len(returns)}/{episodes}  mean={mean_ret:.3f}  last={ep_ret:.3f}  sps={sps:.0f}", flush=True)
+                        last_print = now
+
             ep_ret = 0.0
             obs = reset_env(env)
+
+    if pbar is not None:
+        pbar.close()
 
     return float(np.mean(returns)), float(np.std(returns))
 
@@ -254,6 +269,7 @@ def main():
     p.add_argument("--test_start", type=int, default=500)
     p.add_argument("--test_levels", type=int, default=500)
     p.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
+    p.add_argument("--no-progress", action="store_true", help="Disable progress indicator.")
     args = p.parse_args()
 
     set_global_seeds(args.seed)
@@ -276,14 +292,17 @@ def main():
     )
 
     try:
-        # Best-effort seeding
-        obs_train0 = seed_env(env_train, args.seed)
-        obs_test0 = seed_env(env_test, args.seed + 1)
+        seed_env(env_train, args.seed)
+        seed_env(env_test, args.seed + 1)
 
-        # If reset(seed=...) already returned an obs, no problem; run_eval will reset again.
-        # Keeping run_eval unchanged for simplicity.
-        mean_tr, std_tr = run_eval(env_train, model, device, args.episodes)
-        mean_te, std_te = run_eval(env_test, model, device, args.episodes)
+        mean_tr, std_tr = run_eval(
+            env_train, model, device, args.episodes,
+            desc="TRAIN", progress=(not args.no_progress)
+        )
+        mean_te, std_te = run_eval(
+            env_test, model, device, args.episodes,
+            desc="TEST ", progress=(not args.no_progress)
+        )
 
         print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
         print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
