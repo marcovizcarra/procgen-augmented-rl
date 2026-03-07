@@ -1,0 +1,16 @@
+
+=== DATASETS ROOT: data/stage1_datasets_L40  (run_group=compare_bc_iql_L40_top3_seed0_steps20k_ep200) ===
+Variants: 3 -> ['shift4_noise_0p02', 'shift4_scale_0p8_1p2', 'shift4_scale_0p9_1p1']
+Outputs: runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary
+
+[1/3] variant=shift4_noise_0p02
+
+[2/3] variant=shift4_scale_0p8_1p2
+
+[3/3] variant=shift4_scale_0p9_1p1
+
+Saved JSON: runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary/results.json
+Saved CSV : runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary/results.csv
+Saved MD  : runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary/results.md
+Per-variant summaries: runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary/variants
+Logs: runs/compare_bc_iql_L40_top3_seed0_steps20k_ep200/stage1_iql_train_eval_summary/logs
