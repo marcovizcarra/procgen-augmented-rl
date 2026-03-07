@@ -6,7 +6,12 @@ channels:
 dependencies:
   - python=3.10
   - pip=24.0
-  - numpy
+  # ------------------------------------------------------------
+  # uncomment if you want to use Apple Silicon compatible version
+  # - setuptools<58
+  # - numpy<2
+  # ------------------------------------------------------------
+  - numpy 
   - pandas
   - matplotlib
   - pytorch>=2.1
@@ -16,8 +21,8 @@ dependencies:
       - torchrl
       - tensordict
 
-      # Procgen evaluation (Gym wrapper)
-      - gym==0.21.0
+      # Procgen evaluation (Gym wrapper) is installed in setup_env.sh. 
+      - gym==0.21.0 # comment out if you want to use Apple Silicon compatible version
       - procgen==0.10.7
 
       # Utilities
