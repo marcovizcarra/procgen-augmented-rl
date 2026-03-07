@@ -205,16 +205,26 @@ def run_evaluation(
     ] + list(extra_eval_args)
 
     start = time.time()
-    if verbose:
-        print("\n$ " + " ".join(cmd), flush=True)
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-        print(out, flush=True)
-    else:
-        assert logs_dir is not None
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        log_path = logs_dir / f"{ckpt.parent.name}_eval.log"
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
-        log_path.write_text("$ " + " ".join(cmd) + "\n\n" + out, encoding="utf-8")
+    log_path = None
+    try:
+        if verbose:
+            print("\n$ " + " ".join(cmd), flush=True)
+            out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            print(out, flush=True)
+        else:
+            assert logs_dir is not None
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / f"{ckpt.parent.name}_eval.log"
+            out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+            log_path.write_text("$ " + " ".join(cmd) + "\n\n" + out, encoding="utf-8")
+    except subprocess.CalledProcessError as e:
+        msg = e.output or ""
+        if log_path is not None:
+            log_path.write_text("$ " + " ".join(cmd) + "\n\n" + msg, encoding="utf-8")
+        where = f" See log: {log_path}" if log_path is not None else ""
+        raise RuntimeError(
+            f"eval_iql_procgen.py failed for ckpt={ckpt} (exit code={e.returncode}).{where}\n{msg}"
+        ) from e
 
     elapsed = time.time() - start
     return parse_eval(out), elapsed
