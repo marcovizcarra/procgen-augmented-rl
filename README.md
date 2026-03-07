@@ -25,7 +25,11 @@ pip install -U pip
 pip install torch torchvision torchrl tensordict requests tqdm
 ```
 
+### NOTE
 For Apple Silicon Macs, use the provided setup script (it creates an `osx-64`/Rosetta env so `procgen` can install):
+
+- In `environment.yml`, comment out `numpy` and uncomment `- setuptools<58 - numpy<2`
+- In `environment.yml`, comment out `gym==0.21.0` 
 
 ```bash
 bash setup_env.sh
@@ -40,3 +44,4 @@ conda activate procgen-augmented-rl
   Ensure NumPy is `<2`: `python -c "import numpy; print(numpy.__version__)"` (expected `1.26.x`).
 - `gym==0.21.0` build failures  
   Re-run `bash setup_env.sh`; it pins compatible legacy packaging tools before installing Gym.
+ 
