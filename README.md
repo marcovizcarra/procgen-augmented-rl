@@ -23,3 +23,20 @@ Procgen environments are built to test **generalization**: you train on one set 
 ```bash
 pip install -U pip
 pip install torch torchvision torchrl tensordict requests tqdm
+```
+
+For Apple Silicon Macs, use the provided setup script (it creates an `osx-64`/Rosetta env so `procgen` can install):
+
+```bash
+bash setup_env.sh
+conda activate procgen-augmented-rl
+```
+
+## Troubleshooting (Apple Silicon)
+
+- `ERROR: No matching distribution found for procgen==0.10.7`  
+  Use `bash setup_env.sh` and verify `python -c "import platform; print(platform.machine())"` prints `x86_64`.
+- `RuntimeError: Could not infer dtype of numpy.uint8` during dataset loading  
+  Ensure NumPy is `<2`: `python -c "import numpy; print(numpy.__version__)"` (expected `1.26.x`).
+- `gym==0.21.0` build failures  
+  Re-run `bash setup_env.sh`; it pins compatible legacy packaging tools before installing Gym.
