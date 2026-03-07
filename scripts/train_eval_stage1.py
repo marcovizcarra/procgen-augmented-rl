@@ -180,6 +180,11 @@ def run_training(
     train_script: str = "scripts/train_bc_min.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
+    wandb: bool = False,
+    wandb_project: str = "procgen-augmented-rl",
+    wandb_entity: Optional[str] = None,
+    wandb_mode: str = "online",
+    wandb_tags: str = "",
 ) -> Tuple[Path, bool, float]:
     """
     Returns: (ckpt_path, skipped, elapsed_sec)
@@ -201,6 +206,16 @@ def run_training(
         "--seed", str(seed),
         "--device", str(device),
     ]
+    if wandb:
+        cmd += [
+            "--wandb",
+            "--wandb-project", str(wandb_project),
+            "--wandb-mode", str(wandb_mode),
+        ]
+        if wandb_entity:
+            cmd += ["--wandb-entity", str(wandb_entity)]
+        if wandb_tags:
+            cmd += ["--wandb-tags", str(wandb_tags)]
 
     start = time.time()
     if verbose:
@@ -237,6 +252,11 @@ def run_evaluation(
     eval_script: str = "scripts/eval_procgen.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
+    wandb: bool = False,
+    wandb_project: str = "procgen-augmented-rl",
+    wandb_entity: Optional[str] = None,
+    wandb_mode: str = "online",
+    wandb_tags: str = "",
 ) -> Tuple[Dict[str, float], float]:
     """
     Returns: (metrics_dict, elapsed_sec)
@@ -252,6 +272,17 @@ def run_evaluation(
         "--test_levels", str(test_levels),
         "--distribution_mode", str(distribution_mode),
     ] + list(extra_eval_args)
+    if wandb:
+        cmd += [
+            "--wandb",
+            "--wandb-project", str(wandb_project),
+            "--wandb-mode", str(wandb_mode),
+            "--wandb-run-name", f"eval_{ckpt.parent.name}",
+        ]
+        if wandb_entity:
+            cmd += ["--wandb-entity", str(wandb_entity)]
+        if wandb_tags:
+            cmd += ["--wandb-tags", str(wandb_tags)]
 
     start = time.time()
     if verbose:
@@ -337,6 +368,11 @@ def main():
     ap.add_argument("--only", default=None, help="Comma-separated list of variants to run.")
     ap.add_argument("--skip-missing", action="store_true", help="Skip missing variants/ckpts instead of failing.")
     ap.add_argument("--verbose", action="store_true", help="Stream train/eval output to terminal instead of log files.")
+    ap.add_argument("--wandb", action="store_true", help="Enable Weights & Biases for spawned train/eval scripts.")
+    ap.add_argument("--wandb-project", default="procgen-augmented-rl")
+    ap.add_argument("--wandb-entity", default=None)
+    ap.add_argument("--wandb-mode", default="online", choices=["online", "offline", "disabled"])
+    ap.add_argument("--wandb-tags", default="", help="Comma-separated tags forwarded to train/eval scripts.")
 
     args = ap.parse_args()
 
@@ -406,6 +442,11 @@ def main():
                 skip_existing=args.skip_existing,
                 logs_dir=None if args.verbose else logs_dir,
                 verbose=args.verbose,
+                wandb=args.wandb,
+                wandb_project=args.wandb_project,
+                wandb_entity=args.wandb_entity,
+                wandb_mode=args.wandb_mode,
+                wandb_tags=args.wandb_tags,
             )
 
             # Eval
@@ -421,6 +462,11 @@ def main():
                 extra_eval_args=extra_eval_args,
                 logs_dir=None if args.verbose else logs_dir,
                 verbose=args.verbose,
+                wandb=args.wandb,
+                wandb_project=args.wandb_project,
+                wandb_entity=args.wandb_entity,
+                wandb_mode=args.wandb_mode,
+                wandb_tags=args.wandb_tags,
             )
 
             row = {

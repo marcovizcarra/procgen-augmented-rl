@@ -166,6 +166,12 @@ def main():
     p.add_argument("--device", type=str, default="auto", help="auto | cpu | cuda | mps")
     p.add_argument("--n-actions", type=int, default=15)
     p.add_argument("--log-every", type=int, default=200)
+    p.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging.")
+    p.add_argument("--wandb-project", type=str, default="procgen-augmented-rl")
+    p.add_argument("--wandb-entity", type=str, default=None)
+    p.add_argument("--wandb-run-name", type=str, default=None)
+    p.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
+    p.add_argument("--wandb-tags", type=str, default="", help="Comma-separated list, e.g. 'bc,stage1,baseline'.")
     args = p.parse_args()
 
     device = pick_device(args.device)
@@ -194,6 +200,36 @@ def main():
     print(f"Run: {args.run_name} | steps={args.steps} | batch_size={args.batch_size} | lr={args.lr} | seed={args.seed}")
     print(f"Data: {data_desc}")
 
+    wb_run = None
+    if args.wandb:
+        try:
+            import wandb
+        except Exception as e:
+            raise RuntimeError(
+                "W&B logging requested (--wandb) but wandb is not installed. "
+                "Install with: pip install wandb"
+            ) from e
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+        wb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_run_name or args.run_name,
+            mode=args.wandb_mode,
+            tags=tags,
+            config={
+                "algo": "BC",
+                "run_name": args.run_name,
+                "steps": args.steps,
+                "batch_size": args.batch_size,
+                "lr": args.lr,
+                "seed": args.seed,
+                "device": str(device),
+                "n_actions": args.n_actions,
+                "data_source": data_desc,
+                "value_loss_defined": False,
+            },
+        )
+
     # Model/opt
     model = CNNPolicy(n_actions=args.n_actions).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -202,6 +238,7 @@ def main():
     model.train()
     losses_window: List[float] = []
     acc_window: List[float] = []
+    ent_window: List[float] = []
 
     start_time = time.time()
     last_fallback_print = start_time
@@ -210,92 +247,111 @@ def main():
         iterator = trange(1, args.steps + 1, desc=f"BC[{args.run_name}]", dynamic_ncols=True)
     else:
         iterator = range(1, args.steps + 1)
+    try:
+        for step in iterator:
+            obs_u8, act = next(data_iter)
+            obs_t = torch.from_numpy(obs_u8).to(device)            # uint8
+            act_t = torch.from_numpy(act).to(device).long()
 
-    for step in iterator:
-        obs_u8, act = next(data_iter)
-        obs_t = torch.from_numpy(obs_u8).to(device)            # uint8
-        act_t = torch.from_numpy(act).to(device).long()
+            logits = model(obs_t)
+            loss = F.cross_entropy(logits, act_t)
 
-        logits = model(obs_t)
-        loss = F.cross_entropy(logits, act_t)
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            opt.step()
 
-        opt.zero_grad(set_to_none=True)
-        loss.backward()
-        opt.step()
+            # metrics
+            losses_window.append(float(loss.item()))
+            with torch.no_grad():
+                pred = logits.argmax(dim=-1)
+                acc = (pred == act_t).float().mean().item()
+                probs = torch.softmax(logits, dim=-1)
+                entropy = -(probs * probs.clamp_min(1e-8).log()).sum(dim=-1).mean().item()
+            acc_window.append(float(acc))
+            ent_window.append(float(entropy))
 
-        # metrics
-        losses_window.append(float(loss.item()))
-        with torch.no_grad():
-            pred = logits.argmax(dim=-1)
-            acc = (pred == act_t).float().mean().item()
-        acc_window.append(float(acc))
+            # progress updates
+            if step % args.log_every == 0 or step == 1 or step == args.steps:
+                avg_loss = sum(losses_window[-args.log_every:]) / min(args.log_every, len(losses_window))
+                avg_acc = sum(acc_window[-args.log_every:]) / min(args.log_every, len(acc_window))
+                avg_ent = sum(ent_window[-args.log_every:]) / min(args.log_every, len(ent_window))
+                elapsed = time.time() - start_time
+                steps_per_s = step / max(1e-9, elapsed)
+                eta = (args.steps - step) / max(1e-9, steps_per_s)
 
-        # progress updates
-        if step % args.log_every == 0 or step == 1 or step == args.steps:
-            avg_loss = sum(losses_window[-args.log_every:]) / min(args.log_every, len(losses_window))
-            avg_acc = sum(acc_window[-args.log_every:]) / min(args.log_every, len(acc_window))
-            elapsed = time.time() - start_time
-            steps_per_s = step / max(1e-9, elapsed)
-            eta = (args.steps - step) / max(1e-9, steps_per_s)
-
-            if trange is not None:
-                # update tqdm bar postfix (nice and compact)
-                iterator.set_postfix(
-                    loss=f"{avg_loss:.4f}",
-                    acc=f"{avg_acc:.3f}",
-                    sps=f"{steps_per_s:.1f}",
-                    eta=_fmt_time(eta),
-                    device=str(device),
-                )
-            else:
-                # fallback: print periodic single-line progress
-                now = time.time()
-                if (now - last_fallback_print) > 1.0 or step in (1, args.steps):
-                    pct = 100.0 * step / args.steps
-                    print(
-                        f"[{pct:6.2f}%] step {step:6d}/{args.steps}  "
-                        f"loss={avg_loss:.4f}  acc={avg_acc:.3f}  "
-                        f"sps={steps_per_s:.1f}  eta={_fmt_time(eta)}",
-                        flush=True,
+                if wb_run is not None:
+                    wb_run.log(
+                        {
+                            "train/policy_loss": avg_loss,
+                            "train/value_loss": float("nan"),
+                            "train/entropy": avg_ent,
+                            "train/acc": avg_acc,
+                            "train/sps": steps_per_s,
+                        },
+                        step=step,
                     )
-                    last_fallback_print = now
 
-    # Save
-    run_dir = Path("runs") / args.run_name
-    run_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = run_dir / "bc_ckpt.pt"
+                if trange is not None:
+                    # update tqdm bar postfix (nice and compact)
+                    iterator.set_postfix(
+                        loss=f"{avg_loss:.4f}",
+                        acc=f"{avg_acc:.3f}",
+                        sps=f"{steps_per_s:.1f}",
+                        eta=_fmt_time(eta),
+                        device=str(device),
+                    )
+                else:
+                    # fallback: print periodic single-line progress
+                    now = time.time()
+                    if (now - last_fallback_print) > 1.0 or step in (1, args.steps):
+                        pct = 100.0 * step / args.steps
+                        print(
+                            f"[{pct:6.2f}%] step {step:6d}/{args.steps}  "
+                            f"loss={avg_loss:.4f}  acc={avg_acc:.3f}  "
+                            f"sps={steps_per_s:.1f}  eta={_fmt_time(eta)}",
+                            flush=True,
+                        )
+                        last_fallback_print = now
 
-    state = model.state_dict()
-    ckpt = {
-        "model": state,
-        "state_dict": state,
-        "model_state_dict": state,
-        "n_actions": args.n_actions,
-        "obs_shape": (3, 64, 64),
-        "algo": "BC",
-        "arch": "CNNPolicy_v1",
-        "seed": args.seed,
-        "steps": args.steps,
-        "batch_size": args.batch_size,
-        "lr": args.lr,
-        "data_source": data_desc,
-    }
-    torch.save(ckpt, ckpt_path)
+        # Save
+        run_dir = Path("runs") / args.run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        ckpt_path = run_dir / "bc_ckpt.pt"
 
-    cfg = {
-        "run_name": args.run_name,
-        "steps": args.steps,
-        "batch_size": args.batch_size,
-        "lr": args.lr,
-        "seed": args.seed,
-        "device": str(device),
-        "n_actions": args.n_actions,
-        "data_source": data_desc,
-        "ckpt_path": str(ckpt_path),
-        "elapsed_sec": time.time() - start_time,
-    }
-    (run_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    print(f"Saved checkpoint: {ckpt_path} (elapsed {_fmt_time(cfg['elapsed_sec'])})")
+        state = model.state_dict()
+        ckpt = {
+            "model": state,
+            "state_dict": state,
+            "model_state_dict": state,
+            "n_actions": args.n_actions,
+            "obs_shape": (3, 64, 64),
+            "algo": "BC",
+            "arch": "CNNPolicy_v1",
+            "seed": args.seed,
+            "steps": args.steps,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "data_source": data_desc,
+        }
+        torch.save(ckpt, ckpt_path)
+
+        cfg = {
+            "run_name": args.run_name,
+            "steps": args.steps,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "seed": args.seed,
+            "device": str(device),
+            "n_actions": args.n_actions,
+            "data_source": data_desc,
+            "ckpt_path": str(ckpt_path),
+            "elapsed_sec": time.time() - start_time,
+        }
+        (run_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        print(f"Saved checkpoint: {ckpt_path} (elapsed {_fmt_time(cfg['elapsed_sec'])})")
+    finally:
+        if wb_run is not None:
+            wb_run.finish()
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ Usage:
 import argparse
 import random
 import time
+from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
@@ -207,8 +208,10 @@ def run_eval(env, model, device, episodes: int, desc: str = "", progress: bool =
     Evaluate policy for N episodes with a progress indicator.
     """
     returns = []
+    lengths = []
     obs = reset_env(env)
     ep_ret = 0.0
+    ep_len = 0
     total_steps = 0
     t0 = time.time()
 
@@ -226,10 +229,12 @@ def run_eval(env, model, device, episodes: int, desc: str = "", progress: bool =
 
         obs, r, done, _ = step_env(env, action)
         ep_ret += r
+        ep_len += 1
         total_steps += 1
 
         if done:
             returns.append(ep_ret)
+            lengths.append(ep_len)
 
             # update progress
             if pbar is not None:
@@ -250,12 +255,13 @@ def run_eval(env, model, device, episodes: int, desc: str = "", progress: bool =
                         last_print = now
 
             ep_ret = 0.0
+            ep_len = 0
             obs = reset_env(env)
 
     if pbar is not None:
         pbar.close()
 
-    return float(np.mean(returns)), float(np.std(returns))
+    return float(np.mean(returns)), float(np.std(returns)), float(np.mean(lengths))
 
 
 def main():
@@ -263,20 +269,66 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--ckpt", required=True)
     p.add_argument("--episodes", type=int, default=50)
-    p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--train_start", type=int, default=0)
     p.add_argument("--train_levels", type=int, default=500)
     p.add_argument("--test_start", type=int, default=500)
     p.add_argument("--test_levels", type=int, default=500)
     p.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
     p.add_argument("--no-progress", action="store_true", help="Disable progress indicator.")
+    p.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging.")
+    p.add_argument("--wandb-project", type=str, default="procgen-augmented-rl")
+    p.add_argument("--wandb-entity", type=str, default=None)
+    p.add_argument("--wandb-run-name", type=str, default=None)
+    p.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
+    p.add_argument("--wandb-tags", type=str, default="", help="Comma-separated list, e.g. 'eval,stage1'.")
     args = p.parse_args()
 
     set_global_seeds(args.seed)
-    device = torch.device(args.device)
+    if args.device == "auto":
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+    else:
+        device = torch.device(args.device)
 
-    ckpt = torch.load(args.ckpt, map_location=device)
+    # Load to CPU first; build_model_for_checkpoint calls .to(device) internally.
+    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     model = build_model_for_checkpoint(ckpt, device=device)
+
+    wb_run = None
+    if args.wandb:
+        try:
+            import wandb
+        except Exception as e:
+            raise RuntimeError(
+                "W&B logging requested (--wandb) but wandb is not installed. "
+                "Install with: pip install wandb"
+            ) from e
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+        default_name = f"eval_{Path(args.ckpt).parent.name}"
+        wb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_run_name or default_name,
+            mode=args.wandb_mode,
+            tags=tags,
+            config={
+                "eval_ckpt": args.ckpt,
+                "seed": args.seed,
+                "episodes": args.episodes,
+                "device": str(device),
+                "train_start": args.train_start,
+                "train_levels": args.train_levels,
+                "test_start": args.test_start,
+                "test_levels": args.test_levels,
+                "distribution_mode": args.distribution_mode,
+                "value_loss_defined": False,
+            },
+        )
 
     env_train = gym.make(
         "procgen:procgen-coinrun-v0",
@@ -295,20 +347,44 @@ def main():
         seed_env(env_train, args.seed)
         seed_env(env_test, args.seed + 1)
 
-        mean_tr, std_tr = run_eval(
+        mean_tr, std_tr, mean_len_tr = run_eval(
             env_train, model, device, args.episodes,
             desc="TRAIN", progress=(not args.no_progress)
         )
-        mean_te, std_te = run_eval(
+        if wb_run is not None:
+            wb_run.log(
+                {
+                    "eval/train_reward_mean": mean_tr,
+                    "eval/train_reward_std": std_tr,
+                    "eval/train_episode_mean_length": mean_len_tr,
+                },
+                step=0,
+            )
+
+        mean_te, std_te, mean_len_te = run_eval(
             env_test, model, device, args.episodes,
             desc="TEST ", progress=(not args.no_progress)
         )
+        if wb_run is not None:
+            wb_run.log(
+                {
+                    "eval/test_reward_mean": mean_te,
+                    "eval/test_reward_std": std_te,
+                    "eval/test_episode_mean_length": mean_len_te,
+                    "eval/generalization_gap": mean_te - mean_tr,
+                    # BC checkpoints do not have a critic head.
+                    "eval/value_loss": float("nan"),
+                },
+                step=1,
+            )
 
         print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
         print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
     finally:
         env_train.close()
         env_test.close()
+        if wb_run is not None:
+            wb_run.finish()
 
 
 if __name__ == "__main__":
