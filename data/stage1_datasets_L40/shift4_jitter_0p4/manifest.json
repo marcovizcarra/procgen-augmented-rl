@@ -1,0 +1,31 @@
+{
+  "source": "GenDGRLExperienceReplay",
+  "source_dataset_id": "coinrun-level_40_E",
+  "variant": {
+    "name": "shift4_jitter_0p4",
+    "shift_pad": 4,
+    "scale_range": null,
+    "jitter_strength": 0.4,
+    "cutout_size": null,
+    "noise_sigma": null,
+    "blur": false,
+    "p_aug": 1.0
+  },
+  "num_samples": 20000,
+  "shard_size": 5000,
+  "num_shards": 4,
+  "shards": [
+    "shard_00000.npz",
+    "shard_00001.npz",
+    "shard_00002.npz",
+    "shard_00003.npz"
+  ],
+  "format": {
+    "obs": "uint8 (N,3,64,64)",
+    "next_obs": "uint8 (N,3,64,64)",
+    "action": "int64 (N,)",
+    "reward": "float32 (N,)",
+    "done": "uint8 (N,)"
+  },
+  "seed": 0
+}
