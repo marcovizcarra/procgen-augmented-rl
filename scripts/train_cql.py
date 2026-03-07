@@ -169,10 +169,28 @@ def main() -> None:
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--target-tau", type=float, default=0.005)
     p.add_argument("--cql-alpha", type=float, default=1.0)
+    p.add_argument("--temp", type=float, default=1.0, help="Temperature for CQL logsumexp term.")
+    p.add_argument(
+        "--min-q-version",
+        type=int,
+        default=1,
+        choices=[1, 2, 3],
+        help="1: logsumexp (default), 2: mean-Q penalty, 3: max-Q penalty.",
+    )
+    p.add_argument("--with-lagrange", action="store_true", help="Enable Lagrange auto-tuning for conservative weight.")
+    p.add_argument(
+        "--lagrange-thresh",
+        type=float,
+        default=10.0,
+        help="Target action-gap threshold for Lagrange CQL.",
+    )
 
     p.add_argument("--lr-q", type=float, default=3e-4)
+    p.add_argument("--lr-cql-alpha", type=float, default=1e-4, help="LR for Lagrange alpha (if enabled).")
     p.add_argument("--log-every", type=int, default=200)
     args = p.parse_args()
+    if args.temp <= 0:
+        raise ValueError("--temp must be > 0")
 
     device = pick_device(args.device)
     torch.manual_seed(args.seed)
@@ -202,6 +220,11 @@ def main() -> None:
     q2_targ.load_state_dict(q2.state_dict())
 
     opt_q = torch.optim.Adam(list(q1.parameters()) + list(q2.parameters()), lr=args.lr_q)
+    log_cql_alpha = None
+    opt_cql_alpha = None
+    if args.with_lagrange:
+        log_cql_alpha = torch.zeros(1, device=device, requires_grad=True)
+        opt_cql_alpha = torch.optim.Adam([log_cql_alpha], lr=args.lr_cql_alpha)
 
     print(f"Device: {device}")
     print(f"Run: {args.run_name} | steps={args.steps} | batch_size={args.batch_size} | seed={args.seed}")
@@ -213,7 +236,7 @@ def main() -> None:
     else:
         iterator = range(1, args.steps + 1)
 
-    stats: Dict[str, List[float]] = {"bellman": [], "cql": [], "q": []}
+    stats: Dict[str, List[float]] = {"bellman": [], "cql": [], "q": [], "alpha": []}
 
     for step in iterator:
         obs_u8, next_obs_u8, act_np, rew_np, done_np = next(data_iter)
@@ -236,15 +259,40 @@ def main() -> None:
 
         bellman = F.mse_loss(q1_data, target) + F.mse_loss(q2_data, target)
 
-        cql1 = (torch.logsumexp(q1_all, dim=1) - q1_data).mean()
-        cql2 = (torch.logsumexp(q2_all, dim=1) - q2_data).mean()
+        if args.min_q_version == 1:
+            # Standard discrete CQL(H): temp * logsumexp(Q/temp) - Q(s,a_data)
+            cql1 = (args.temp * torch.logsumexp(q1_all / args.temp, dim=1) - q1_data).mean()
+            cql2 = (args.temp * torch.logsumexp(q2_all / args.temp, dim=1) - q2_data).mean()
+        elif args.min_q_version == 2:
+            # Mean-Q variant (weaker conservative penalty)
+            cql1 = (q1_all.mean(dim=1) - q1_data).mean()
+            cql2 = (q2_all.mean(dim=1) - q2_data).mean()
+        else:
+            # Max-Q variant (stronger penalty on largest competing action value)
+            cql1 = (q1_all.max(dim=1).values - q1_data).mean()
+            cql2 = (q2_all.max(dim=1).values - q2_data).mean()
         cql_pen = cql1 + cql2
 
-        q_loss = bellman + args.cql_alpha * cql_pen
+        if args.with_lagrange:
+            assert log_cql_alpha is not None and opt_cql_alpha is not None
+            cql_alpha = torch.exp(log_cql_alpha).clamp(min=0.0, max=1e6)
+            cql_term = cql_alpha.detach() * (cql_pen - args.lagrange_thresh)
+            q_loss = bellman + cql_term
+        else:
+            cql_alpha = torch.tensor(args.cql_alpha, device=device)
+            q_loss = bellman + args.cql_alpha * cql_pen
 
         opt_q.zero_grad(set_to_none=True)
         q_loss.backward()
         opt_q.step()
+
+        if args.with_lagrange:
+            # Increase alpha when penalty exceeds threshold, decrease otherwise.
+            assert log_cql_alpha is not None and opt_cql_alpha is not None
+            alpha_loss = -(torch.exp(log_cql_alpha) * (cql_pen.detach() - args.lagrange_thresh))
+            opt_cql_alpha.zero_grad(set_to_none=True)
+            alpha_loss.backward()
+            opt_cql_alpha.step()
 
         soft_update(q1_targ, q1, args.target_tau)
         soft_update(q2_targ, q2, args.target_tau)
@@ -252,12 +300,14 @@ def main() -> None:
         stats["bellman"].append(float(bellman.item()))
         stats["cql"].append(float(cql_pen.item()))
         stats["q"].append(float(q_loss.item()))
+        stats["alpha"].append(float(cql_alpha.item()))
 
         if step % args.log_every == 0 or step == 1 or step == args.steps:
             k = min(args.log_every, len(stats["q"]))
             bellman_avg = float(np.mean(stats["bellman"][-k:]))
             cql_avg = float(np.mean(stats["cql"][-k:]))
             q_avg = float(np.mean(stats["q"][-k:]))
+            alpha_avg = float(np.mean(stats["alpha"][-k:]))
 
             elapsed = time.time() - start_time
             sps = step / max(1e-9, elapsed)
@@ -266,16 +316,17 @@ def main() -> None:
             if trange is not None:
                 iterator.set_postfix(
                     bellman=f"{bellman_avg:.4f}",
-                    cql=f"{cql_avg:.4f}",
-                    q=f"{q_avg:.4f}",
-                    sps=f"{sps:.1f}",
-                    eta=_fmt_time(eta),
-                )
+                        cql=f"{cql_avg:.4f}",
+                        q=f"{q_avg:.4f}",
+                        alpha=f"{alpha_avg:.3f}",
+                        sps=f"{sps:.1f}",
+                        eta=_fmt_time(eta),
+                    )
             else:
                 pct = 100.0 * step / args.steps
                 print(
                     f"[{pct:6.2f}%] step {step:6d}/{args.steps} "
-                    f"bellman={bellman_avg:.4f} cql={cql_avg:.4f} q={q_avg:.4f} "
+                    f"bellman={bellman_avg:.4f} cql={cql_avg:.4f} q={q_avg:.4f} alpha={alpha_avg:.3f} "
                     f"sps={sps:.1f} eta={_fmt_time(eta)}",
                     flush=True,
                 )
@@ -293,6 +344,11 @@ def main() -> None:
         "gamma": args.gamma,
         "target_tau": args.target_tau,
         "cql_alpha": args.cql_alpha,
+        "temp": args.temp,
+        "min_q_version": args.min_q_version,
+        "with_lagrange": args.with_lagrange,
+        "lagrange_thresh": args.lagrange_thresh,
+        "learned_cql_alpha": float(np.mean(stats["alpha"][-min(args.log_every, len(stats["alpha"])):])),
         "n_actions": args.n_actions,
         "hidden": args.hidden,
         "data_source": data_desc,
@@ -312,6 +368,11 @@ def main() -> None:
         "gamma": args.gamma,
         "target_tau": args.target_tau,
         "cql_alpha": args.cql_alpha,
+        "temp": args.temp,
+        "min_q_version": args.min_q_version,
+        "with_lagrange": args.with_lagrange,
+        "lagrange_thresh": args.lagrange_thresh,
+        "lr_cql_alpha": args.lr_cql_alpha,
         "lr_q": args.lr_q,
         "data_source": data_desc,
         "ckpt_path": str(ckpt_path),

@@ -96,7 +96,12 @@ def run_training(
     gamma: float,
     target_tau: float,
     cql_alpha: float,
+    temp: float,
+    min_q_version: int,
+    with_lagrange: bool,
+    lagrange_thresh: float,
     lr_q: float,
+    lr_cql_alpha: float,
     train_script: str = "scripts/train_cql.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
@@ -121,8 +126,14 @@ def run_training(
         "--gamma", str(gamma),
         "--target-tau", str(target_tau),
         "--cql-alpha", str(cql_alpha),
+        "--temp", str(temp),
+        "--min-q-version", str(min_q_version),
+        "--lagrange-thresh", str(lagrange_thresh),
         "--lr-q", str(lr_q),
+        "--lr-cql-alpha", str(lr_cql_alpha),
     ]
+    if with_lagrange:
+        cmd.append("--with-lagrange")
 
     start = time.time()
     if verbose:
@@ -220,7 +231,12 @@ def main() -> None:
     ap.add_argument("--gamma", type=float, default=0.99)
     ap.add_argument("--target-tau", type=float, default=0.005)
     ap.add_argument("--cql-alpha", type=float, default=1.0)
+    ap.add_argument("--temp", type=float, default=1.0)
+    ap.add_argument("--min-q-version", type=int, default=1, choices=[1, 2, 3])
+    ap.add_argument("--with-lagrange", action="store_true")
+    ap.add_argument("--lagrange-thresh", type=float, default=10.0)
     ap.add_argument("--lr-q", type=float, default=3e-4)
+    ap.add_argument("--lr-cql-alpha", type=float, default=1e-4)
 
     ap.add_argument("--episodes", type=int, default=200)
     ap.add_argument("--train_start", type=int, default=0)
@@ -283,7 +299,12 @@ def main() -> None:
             gamma=args.gamma,
             target_tau=args.target_tau,
             cql_alpha=args.cql_alpha,
+            temp=args.temp,
+            min_q_version=args.min_q_version,
+            with_lagrange=args.with_lagrange,
+            lagrange_thresh=args.lagrange_thresh,
             lr_q=args.lr_q,
+            lr_cql_alpha=args.lr_cql_alpha,
             logs_dir=None if args.verbose else logs_dir,
             verbose=args.verbose,
         )
@@ -316,7 +337,12 @@ def main() -> None:
             "gamma": args.gamma,
             "target_tau": args.target_tau,
             "cql_alpha": args.cql_alpha,
+            "temp": args.temp,
+            "min_q_version": args.min_q_version,
+            "with_lagrange": args.with_lagrange,
+            "lagrange_thresh": args.lagrange_thresh,
             "lr_q": args.lr_q,
+            "lr_cql_alpha": args.lr_cql_alpha,
             "train_skipped": skipped,
             "train_elapsed_sec": float(train_elapsed),
             "episodes": args.episodes,

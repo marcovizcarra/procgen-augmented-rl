@@ -58,6 +58,9 @@ python -B scripts/train_eval_stage1_cql.py \
 -----------------------------------
 - cql_alpha: 0.5, 1.0, 2.0, 5.0
 - target_tau: 0.005 (default), 0.01
+- temp: 1.0 (default), 2.0
+- min_q_version: 1 (logsumexp), 2 (mean-Q), 3 (max-Q)
+- with_lagrange + lagrange_thresh (auto-tune conservative weight)
 
 Example:
 python -B scripts/train_eval_stage1_cql.py \
@@ -69,6 +72,25 @@ python -B scripts/train_eval_stage1_cql.py \
   --batch-size 256 \
   --lr-q 3e-4 \
   --cql-alpha 2.0 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+Example (Lagrange + temp + min_q_version):
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group cql_L40_seed0_steps20k_lagrange \
+  --only baseline_none,shift4_scale_0p9_1p1 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --lr-cql-alpha 1e-4 \
+  --temp 1.0 \
+  --min-q-version 1 \
+  --with-lagrange \
+  --lagrange-thresh 10.0 \
   --episodes 200 \
   --train_start 0 --train_levels 40 \
   --test_start 40 --test_levels 500 \
