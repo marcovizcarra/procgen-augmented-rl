@@ -1,0 +1,13 @@
+{"time":"2026-03-08T19:10:38.965206-07:00","level":"INFO","msg":"stream: starting","core version":"0.25.0"}
+{"time":"2026-03-08T19:10:39.505328-07:00","level":"INFO","msg":"stream: created new stream","id":"32mggfjw"}
+{"time":"2026-03-08T19:10:39.506416-07:00","level":"INFO","msg":"handler: started","stream_id":"32mggfjw"}
+{"time":"2026-03-08T19:10:39.507963-07:00","level":"INFO","msg":"writer: started","stream_id":"32mggfjw"}
+{"time":"2026-03-08T19:10:39.507959-07:00","level":"INFO","msg":"sender: started","stream_id":"32mggfjw"}
+{"time":"2026-03-08T19:10:39.508204-07:00","level":"INFO","msg":"stream: started","id":"32mggfjw"}
+{"time":"2026-03-08T21:12:53.67482-07:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/anniev18-stanford-university/procgen-augmented-rl/32mggfjw/file_stream\": read tcp 10.27.135.191:59332->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2026-03-08T21:41:34.158519-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2026-03-08T21:41:34.365001-07:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2026-03-08T21:41:34.39723-07:00","level":"INFO","msg":"stream: closing","id":"32mggfjw"}
+{"time":"2026-03-08T21:41:34.39789-07:00","level":"INFO","msg":"handler: closed","stream_id":"32mggfjw"}
+{"time":"2026-03-08T21:41:34.399776-07:00","level":"INFO","msg":"sender: closed","stream_id":"32mggfjw"}
+{"time":"2026-03-08T21:41:34.400152-07:00","level":"INFO","msg":"stream: closed","id":"32mggfjw"}

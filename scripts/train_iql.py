@@ -28,6 +28,11 @@ try:
 except Exception:
     GenDGRLExperienceReplay = None
 
+try:
+    import wandb
+except Exception:
+    wandb = None
+
 
 class ConvEncoder(nn.Module):
     def __init__(self, hidden: int = 512):
@@ -201,6 +206,13 @@ def main() -> None:
     p.add_argument("--lr-q", type=float, default=3e-4)
     p.add_argument("--lr-v", type=float, default=3e-4)
     p.add_argument("--log-every", type=int, default=200)
+    p.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging.")
+    p.add_argument("--wandb-project", type=str, default="procgen-augmented-rl")
+    p.add_argument("--wandb-entity", type=str, default=None)
+    p.add_argument("--wandb-group", type=str, default=None)
+    p.add_argument("--wandb-name", type=str, default=None)
+    p.add_argument("--wandb-tags", type=str, default="")
+    p.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
     args = p.parse_args()
 
     if not (0.0 < args.expectile < 1.0):
@@ -243,6 +255,40 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Run: {args.run_name} | steps={args.steps} | batch_size={args.batch_size} | seed={args.seed}")
     print(f"Data: {data_desc}")
+
+    if args.wandb and wandb is None:
+        raise RuntimeError("wandb logging requested but package is not installed. Install with: pip install wandb")
+
+    wandb_run = None
+    if args.wandb and wandb is not None:
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+        wandb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            group=args.wandb_group,
+            name=args.wandb_name or args.run_name.replace("/", "_"),
+            mode=args.wandb_mode,
+            tags=tags,
+            config={
+                "algo": "IQL",
+                "run_name": args.run_name,
+                "seed": args.seed,
+                "steps": args.steps,
+                "batch_size": args.batch_size,
+                "device": str(device),
+                "n_actions": args.n_actions,
+                "hidden": args.hidden,
+                "gamma": args.gamma,
+                "expectile": args.expectile,
+                "beta": args.beta,
+                "exp_adv_max": args.exp_adv_max,
+                "target_tau": args.target_tau,
+                "lr_actor": args.lr_actor,
+                "lr_q": args.lr_q,
+                "lr_v": args.lr_v,
+                "data_source": data_desc,
+            },
+        )
 
     start_time = time.time()
     if trange is not None:
@@ -327,6 +373,18 @@ def main() -> None:
             else:
                 pct = 100.0 * step / args.steps
                 print(f"[{pct:6.2f}%] step {step:6d}/{args.steps} v={v_avg:.4f} q={q_avg:.4f} pi={pi_avg:.4f} adv={adv_avg:.3f} sps={sps:.1f} eta={_fmt_time(eta)}", flush=True)
+            if wandb_run is not None:
+                wandb_run.log(
+                    {
+                        "train/v_loss": v_avg,
+                        "train/q_loss": q_avg,
+                        "train/pi_loss": pi_avg,
+                        "train/adv_mean": adv_avg,
+                        "train/sps": sps,
+                        "train/eta_sec": eta,
+                    },
+                    step=step,
+                )
 
     run_dir = Path("runs") / args.run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -372,8 +430,24 @@ def main() -> None:
         "data_source": data_desc,
         "ckpt_path": str(ckpt_path),
         "elapsed_sec": time.time() - start_time,
+        "wandb_enabled": bool(args.wandb),
+        "wandb_project": args.wandb_project if args.wandb else None,
+        "wandb_group": args.wandb_group if args.wandb else None,
+        "wandb_name": (args.wandb_name or args.run_name.replace("/", "_")) if args.wandb else None,
     }
     (run_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    if wandb_run is not None:
+        wandb_run.log(
+            {
+                "train/final_v_loss": float(stats["v"][-1]) if stats["v"] else float("nan"),
+                "train/final_q_loss": float(stats["q"][-1]) if stats["q"] else float("nan"),
+                "train/final_pi_loss": float(stats["pi"][-1]) if stats["pi"] else float("nan"),
+                "train/final_adv_mean": float(stats["adv"][-1]) if stats["adv"] else float("nan"),
+                "train/elapsed_sec": cfg["elapsed_sec"],
+            },
+            step=args.steps,
+        )
+        wandb_run.finish()
     print(f"Saved checkpoint: {ckpt_path} (elapsed {_fmt_time(cfg['elapsed_sec'])})")
 
 

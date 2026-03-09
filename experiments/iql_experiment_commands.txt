@@ -72,3 +72,41 @@ python -B scripts/train_eval_stage1_iql.py \
   --train_start 0 --train_levels 40 \
   --test_start 40 --test_levels 500 \
   --seed 0
+
+5) Optional Weights & Biases logging
+------------------------------------
+# One-time setup:
+# pip install wandb
+# wandb login
+
+python -B scripts/train_eval_stage1_iql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_iql_L40_top3_seed0_wandb \
+  --only shift4_noise_0p02,shift4_scale_0p8_1p2,shift4_scale_0p9_1p1 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-actor 3e-4 --lr-q 3e-4 --lr-v 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --wandb \
+  --wandb-project procgen-augmented-rl \
+  --wandb-group iql_top3_compare \
+  --wandb-tags iql,coinrun,l40,top3
+
+6) Automated W&B sweep (quick aligned search)
+---------------------------------------------
+# 1) Login once
+# pip install wandb
+# wandb login
+
+# 2) Create sweep (copy returned sweep id)
+wandb sweep experiments/iql_wandb_quick_sweep.yaml
+
+# 3) Start an agent (run this in your x64 env)
+# Replace <entity>/<project>/<sweep_id> with printed value.
+wandb agent <entity>/procgen-augmented-rl/<sweep_id>
+
+# 4) Optional: launch multiple agents in separate terminals for parallel runs.

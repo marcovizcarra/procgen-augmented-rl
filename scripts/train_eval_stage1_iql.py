@@ -101,6 +101,12 @@ def run_training(
     lr_actor: float,
     lr_q: float,
     lr_v: float,
+    wandb_enabled: bool,
+    wandb_project: str,
+    wandb_entity: Optional[str],
+    wandb_group: Optional[str],
+    wandb_mode: str,
+    wandb_tags: str,
     train_script: str = "scripts/train_iql.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
@@ -146,6 +152,22 @@ def run_training(
         "--lr-v",
         str(lr_v),
     ]
+    if wandb_enabled:
+        cmd += [
+            "--wandb",
+            "--wandb-project",
+            str(wandb_project),
+            "--wandb-mode",
+            str(wandb_mode),
+            "--wandb-group",
+            str(wandb_group or run_group),
+            "--wandb-name",
+            f"{run_group}_iql_{variant}_seed{seed}",
+        ]
+        if wandb_entity:
+            cmd += ["--wandb-entity", str(wandb_entity)]
+        if wandb_tags.strip():
+            cmd += ["--wandb-tags", str(wandb_tags)]
 
     start = time.time()
     if verbose:
@@ -256,6 +278,12 @@ def main() -> None:
     ap.add_argument("--lr-actor", type=float, default=3e-4)
     ap.add_argument("--lr-q", type=float, default=3e-4)
     ap.add_argument("--lr-v", type=float, default=3e-4)
+    ap.add_argument("--wandb", action="store_true")
+    ap.add_argument("--wandb-project", default="procgen-augmented-rl")
+    ap.add_argument("--wandb-entity", default=None)
+    ap.add_argument("--wandb-group", default=None)
+    ap.add_argument("--wandb-mode", default="online", choices=["online", "offline", "disabled"])
+    ap.add_argument("--wandb-tags", default="")
 
     ap.add_argument("--episodes", type=int, default=200)
     ap.add_argument("--train_start", type=int, default=0)
@@ -325,6 +353,12 @@ def main() -> None:
             lr_actor=args.lr_actor,
             lr_q=args.lr_q,
             lr_v=args.lr_v,
+            wandb_enabled=args.wandb,
+            wandb_project=args.wandb_project,
+            wandb_entity=args.wandb_entity,
+            wandb_group=args.wandb_group,
+            wandb_mode=args.wandb_mode,
+            wandb_tags=args.wandb_tags,
             logs_dir=None if args.verbose else logs_dir,
             verbose=args.verbose,
         )
@@ -362,6 +396,12 @@ def main() -> None:
             "lr_actor": args.lr_actor,
             "lr_q": args.lr_q,
             "lr_v": args.lr_v,
+            "wandb": bool(args.wandb),
+            "wandb_project": args.wandb_project if args.wandb else None,
+            "wandb_entity": args.wandb_entity if args.wandb else None,
+            "wandb_group": (args.wandb_group or run_group) if args.wandb else None,
+            "wandb_mode": args.wandb_mode if args.wandb else None,
+            "wandb_tags": args.wandb_tags if args.wandb else None,
             "train_skipped": skipped,
             "train_elapsed_sec": float(train_elapsed),
             "episodes": args.episodes,

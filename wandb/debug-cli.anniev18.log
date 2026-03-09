@@ -1,0 +1,116 @@
+2026-03-07 20:39:52 INFO Running runs: []
+2026-03-07 20:39:53 INFO Agent received command: run
+2026-03-07 20:39:53 INFO Agent starting run with config:
+	batch_size: 512
+	beta: 3
+	datasets_root: data/stage1_datasets_L40
+	distribution_mode: hard
+	episodes: 200
+	expectile: 0.8
+	hidden: 256
+	lr: 0.0005
+	run_group_prefix: wandb_iql_quick_align
+	runs_root: runs
+	seed: 0
+	target_tau: 0.005
+	test_levels: 500
+	test_start: 40
+	train_levels: 40
+	train_start: 0
+	train_steps: 20000
+	variant: baseline_none
+2026-03-07 20:39:53 INFO About to run command: /usr/bin/env python scripts/run_iql_wandb_sweep.py --batch_size=512 --beta=3 --datasets_root=data/stage1_datasets_L40 --distribution_mode=hard --episodes=200 --expectile=0.8 --hidden=256 --lr=0.0005 --run_group_prefix=wandb_iql_quick_align --runs_root=runs --seed=0 --target_tau=0.005 --test_levels=500 --test_start=40 --train_levels=40 --train_start=0 --train_steps=20000 --variant=baseline_none
+2026-03-07 20:39:58 INFO Running runs: ['tiqiy05l']
+2026-03-07 20:46:55 INFO Running runs: []
+2026-03-07 20:46:56 INFO Agent received command: run
+2026-03-07 20:46:56 INFO Agent starting run with config:
+	batch_size: 512
+	beta: 3
+	datasets_root: data/stage1_datasets_L40
+	distribution_mode: hard
+	episodes: 200
+	expectile: 0.7
+	hidden: 256
+	lr: 0.0003
+	run_group_prefix: wandb_iql_quick_align
+	runs_root: runs
+	seed: 0
+	target_tau: 0.005
+	test_levels: 500
+	test_start: 40
+	train_levels: 40
+	train_start: 0
+	train_steps: 20000
+	variant: baseline_none
+2026-03-07 20:46:56 INFO About to run command: /usr/bin/env python scripts/run_iql_wandb_sweep.py --batch_size=512 --beta=3 --datasets_root=data/stage1_datasets_L40 --distribution_mode=hard --episodes=200 --expectile=0.7 --hidden=256 --lr=0.0003 --run_group_prefix=wandb_iql_quick_align --runs_root=runs --seed=0 --target_tau=0.005 --test_levels=500 --test_start=40 --train_levels=40 --train_start=0 --train_steps=20000 --variant=baseline_none
+2026-03-07 20:47:01 INFO Running runs: ['4bxyw70w']
+2026-03-07 21:51:26 INFO Cleaning up finished run: 4bxyw70w
+2026-03-07 21:51:27 INFO Agent received command: run
+2026-03-07 21:51:27 INFO Agent starting run with config:
+	batch_size: 512
+	beta: 3
+	datasets_root: data/stage1_datasets_L40
+	distribution_mode: hard
+	episodes: 200
+	expectile: 0.7
+	hidden: 256
+	lr: 0.0003
+	run_group_prefix: wandb_iql_quick_align
+	runs_root: runs
+	seed: 0
+	target_tau: 0.005
+	test_levels: 500
+	test_start: 40
+	train_levels: 40
+	train_start: 0
+	train_steps: 20000
+	variant: baseline_none
+2026-03-07 21:51:27 INFO About to run command: /usr/bin/env python scripts/run_iql_wandb_sweep.py --batch_size=512 --beta=3 --datasets_root=data/stage1_datasets_L40 --distribution_mode=hard --episodes=200 --expectile=0.7 --hidden=256 --lr=0.0003 --run_group_prefix=wandb_iql_quick_align --runs_root=runs --seed=0 --target_tau=0.005 --test_levels=500 --test_start=40 --train_levels=40 --train_start=0 --train_steps=20000 --variant=baseline_none
+2026-03-07 21:51:32 INFO Running runs: ['xocaya8z']
+2026-03-07 22:32:02 INFO Cleaning up finished run: xocaya8z
+2026-03-07 22:32:03 INFO Agent received command: run
+2026-03-07 22:32:03 INFO Agent starting run with config:
+	batch_size: 512
+	beta: 3
+	datasets_root: data/stage1_datasets_L40
+	distribution_mode: hard
+	episodes: 200
+	expectile: 0.7
+	hidden: 256
+	lr: 0.0005
+	run_group_prefix: wandb_iql_quick_align
+	runs_root: runs
+	seed: 0
+	target_tau: 0.005
+	test_levels: 500
+	test_start: 40
+	train_levels: 40
+	train_start: 0
+	train_steps: 20000
+	variant: baseline_none
+2026-03-07 22:32:03 INFO About to run command: /usr/bin/env python scripts/run_iql_wandb_sweep.py --batch_size=512 --beta=3 --datasets_root=data/stage1_datasets_L40 --distribution_mode=hard --episodes=200 --expectile=0.7 --hidden=256 --lr=0.0005 --run_group_prefix=wandb_iql_quick_align --runs_root=runs --seed=0 --target_tau=0.005 --test_levels=500 --test_start=40 --train_levels=40 --train_start=0 --train_steps=20000 --variant=baseline_none
+2026-03-07 22:32:08 INFO Running runs: ['9p4wd7e3']
+2026-03-07 23:12:40 INFO Cleaning up finished run: 9p4wd7e3
+2026-03-07 23:12:41 INFO Agent received command: run
+2026-03-07 23:12:41 INFO Agent starting run with config:
+	batch_size: 512
+	beta: 3
+	datasets_root: data/stage1_datasets_L40
+	distribution_mode: hard
+	episodes: 200
+	expectile: 0.8
+	hidden: 256
+	lr: 0.0003
+	run_group_prefix: wandb_iql_quick_align
+	runs_root: runs
+	seed: 0
+	target_tau: 0.005
+	test_levels: 500
+	test_start: 40
+	train_levels: 40
+	train_start: 0
+	train_steps: 20000
+	variant: baseline_none
+2026-03-07 23:12:41 INFO About to run command: /usr/bin/env python scripts/run_iql_wandb_sweep.py --batch_size=512 --beta=3 --datasets_root=data/stage1_datasets_L40 --distribution_mode=hard --episodes=200 --expectile=0.8 --hidden=256 --lr=0.0003 --run_group_prefix=wandb_iql_quick_align --runs_root=runs --seed=0 --target_tau=0.005 --test_levels=500 --test_start=40 --train_levels=40 --train_start=0 --train_steps=20000 --variant=baseline_none
+2026-03-07 23:12:46 INFO Running runs: ['gpa15cga']
+2026-03-07 23:53:38 INFO Cleaning up finished run: gpa15cga

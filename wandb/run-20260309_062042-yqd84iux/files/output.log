@@ -1,0 +1,1 @@
+IQL[iql_best_vs_bc_L40_rest8_seed0_steps20k/iql_shift_pad8]: 100%|██████████| 20000/20000 [38:46<00:00,  8.60it/s, adv=-0.016, eta=0s, pi=0.3547, q=0.0252, sps=8.6, v=0.0014]     

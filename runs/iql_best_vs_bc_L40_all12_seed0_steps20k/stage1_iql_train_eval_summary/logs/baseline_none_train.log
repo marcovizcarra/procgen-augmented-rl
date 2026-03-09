@@ -1,0 +1,26 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /Users/anniev18/.netrc.
+wandb: Currently logged in as: anniev18 (anniev18-stanford-university) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.25.0
+wandb: Run data is saved locally in /Users/anniev18/Desktop/CS234/procgen-augmented-rl/wandb/run-20260308_172944-0sulj5lh
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run iql_best_vs_bc_L40_all12_seed0_steps20k_iql_baseline_none_seed0
+wandb: ⭐️ View project at https://wandb.ai/anniev18-stanford-university/procgen-augmented-rl
+wandb: 🚀 View run at https://wandb.ai/anniev18-stanford-university/procgen-augmented-rl/runs/0sulj5lh
+Device: mps
+Run: iql_best_vs_bc_L40_all12_seed0_steps20k/iql_baseline_none | steps=20000 | batch_size=512 | seed=0
+Data: NPZ(manifest=data/stage1_datasets_L40/baseline_none/manifest.json)
+IQL[iql_best_vs_bc_L40_all12_seed0_steps20k/iql_baseline_none]:   0%|          | 0/20000 [00:00<?, ?it/s]IQL[iql_best_vs_bc_L40_all12_seed0_steps20k/iql_baseline_none]:   0%|          | 0/20000 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 455, in <module>
+    main()
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 349, in main
+    pi_loss.backward()
+  File "/Users/anniev18/miniconda3/envs/procgen-rl-x64/lib/python3.10/site-packages/torch/_tensor.py", line 522, in backward
+    torch.autograd.backward(
+  File "/Users/anniev18/miniconda3/envs/procgen-rl-x64/lib/python3.10/site-packages/torch/autograd/__init__.py", line 266, in backward
+    Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+KeyboardInterrupt
+$ /Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python scripts/train_iql.py --dataset-root data/stage1_datasets_L40/baseline_none --run-name iql_best_vs_bc_L40_all12_seed0_steps20k/iql_baseline_none --steps 20000 --batch-size 512 --seed 0 --device auto --hidden 256 --gamma 0.99 --expectile 0.7 --beta 3.0 --exp-adv-max 100.0 --target-tau 0.005 --lr-actor 0.0005 --lr-q 0.0005 --lr-v 0.0005 --wandb --wandb-project procgen-augmented-rl --wandb-mode online --wandb-group iql_all12_bestcfg_vs_bc --wandb-name iql_best_vs_bc_L40_all12_seed0_steps20k_iql_baseline_none_seed0 --wandb-tags iql,all12,l40,bestcfg,post_sweep
+
+/Users/anniev18/miniconda3/envs/procgen-rl-x64/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

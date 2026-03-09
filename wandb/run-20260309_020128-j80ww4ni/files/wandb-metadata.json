@@ -1,0 +1,80 @@
+{
+  "os": "macOS-26.2-x86_64-i386-64bit",
+  "python": "CPython 3.10.18",
+  "startedAt": "2026-03-09T09:01:28.887292Z",
+  "args": [
+    "--dataset-root",
+    "data/stage1_datasets_L40/shift4_cutout24",
+    "--run-name",
+    "iql_best_vs_bc_L40_rest8_seed0_steps20k/iql_shift4_cutout24",
+    "--steps",
+    "20000",
+    "--batch-size",
+    "512",
+    "--seed",
+    "0",
+    "--device",
+    "auto",
+    "--hidden",
+    "256",
+    "--gamma",
+    "0.99",
+    "--expectile",
+    "0.7",
+    "--beta",
+    "3.0",
+    "--exp-adv-max",
+    "100.0",
+    "--target-tau",
+    "0.005",
+    "--lr-actor",
+    "0.0005",
+    "--lr-q",
+    "0.0005",
+    "--lr-v",
+    "0.0005",
+    "--wandb",
+    "--wandb-project",
+    "procgen-augmented-rl",
+    "--wandb-mode",
+    "online",
+    "--wandb-group",
+    "iql_all12_bestcfg_rest8",
+    "--wandb-name",
+    "iql_best_vs_bc_L40_rest8_seed0_steps20k_iql_shift4_cutout24_seed0",
+    "--wandb-tags",
+    "iql,l40,rest8,bestcfg,post_sweep"
+  ],
+  "program": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py",
+  "codePath": "scripts/train_iql.py",
+  "codePathLocal": "scripts/train_iql.py",
+  "git": {
+    "remote": "https://github.com/marco-viz/procgen-augmented-rl.git",
+    "commit": "ae9b338bfbeef0596bcabf2d1bb74eea4dec3f15"
+  },
+  "email": "anniev18@stanford.edu",
+  "root": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl",
+  "host": "Kurts-MacBook-Pro.local",
+  "executable": "/Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "470111739904"
+    }
+  },
+  "memory": {
+    "total": "8589934592"
+  },
+  "apple": {
+    "name": "Unknown",
+    "ecpuCores": 4,
+    "pcpuCores": 4,
+    "gpuCores": 10,
+    "memoryGb": 8,
+    "swapTotalBytes": "9663676416",
+    "ramTotalBytes": "8589934592"
+  },
+  "writerId": "6kd11w3t1iavh9auf84mf1i0m3wxi80t"
+}

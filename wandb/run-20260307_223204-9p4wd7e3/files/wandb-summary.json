@@ -1,0 +1,1 @@
+{"gen_gap":1.2,"_timestamp":1.7729539554936361e+09,"test_mean":1.65,"test_std":3.712,"_runtime":2430,"train_std":2.073,"_step":0,"results_csv":"runs/wandb_iql_quick_align_9p4wd7e3/stage1_iql_train_eval_summary/results.csv","run_group":"wandb_iql_quick_align_9p4wd7e3","train_mean":0.45,"_wandb":{"runtime":2430}}

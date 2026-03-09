@@ -1,0 +1,11 @@
+IQL[iql_best_vs_bc_L40_all12_seed0_steps20k/iql_baseline_none]:   0%|          | 0/20000 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 455, in <module>
+    main()
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 349, in main
+    pi_loss.backward()
+  File "/Users/anniev18/miniconda3/envs/procgen-rl-x64/lib/python3.10/site-packages/torch/_tensor.py", line 522, in backward
+    torch.autograd.backward(
+  File "/Users/anniev18/miniconda3/envs/procgen-rl-x64/lib/python3.10/site-packages/torch/autograd/__init__.py", line 266, in backward
+    Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+KeyboardInterrupt

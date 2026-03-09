@@ -1,0 +1,128 @@
+_wandb:
+    value:
+        cli_version: 0.25.0
+        e:
+            e0r16m9z604tz7hnkc5k5qfh5yc7r83a:
+                apple:
+                    ecpuCores: 4
+                    gpuCores: 10
+                    memoryGb: 8
+                    name: Unknown
+                    pcpuCores: 4
+                    ramTotalBytes: "8589934592"
+                    swapTotalBytes: "8589934592"
+                args:
+                    - --dataset-root
+                    - data/stage1_datasets_L40/shift4_scale_0p9_1p1
+                    - --run-name
+                    - iql_best_vs_bc_L40_top3_seed0_steps20k/iql_shift4_scale_0p9_1p1
+                    - --steps
+                    - "20000"
+                    - --batch-size
+                    - "512"
+                    - --seed
+                    - "0"
+                    - --device
+                    - auto
+                    - --hidden
+                    - "256"
+                    - --gamma
+                    - "0.99"
+                    - --expectile
+                    - "0.7"
+                    - --beta
+                    - "3.0"
+                    - --exp-adv-max
+                    - "100.0"
+                    - --target-tau
+                    - "0.005"
+                    - --lr-actor
+                    - "0.0005"
+                    - --lr-q
+                    - "0.0005"
+                    - --lr-v
+                    - "0.0005"
+                    - --wandb
+                    - --wandb-project
+                    - procgen-augmented-rl
+                    - --wandb-mode
+                    - online
+                    - --wandb-group
+                    - iql_all12_bestcfg_top3
+                    - --wandb-name
+                    - iql_best_vs_bc_L40_top3_seed0_steps20k_iql_shift4_scale_0p9_1p1_seed0
+                    - --wandb-tags
+                    - iql,l40,top3,bestcfg,post_sweep
+                codePath: scripts/train_iql.py
+                codePathLocal: scripts/train_iql.py
+                cpu_count: 8
+                cpu_count_logical: 8
+                disk:
+                    /:
+                        total: "494384795648"
+                        used: "468945661952"
+                email: anniev18@stanford.edu
+                executable: /Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python
+                git:
+                    commit: ae9b338bfbeef0596bcabf2d1bb74eea4dec3f15
+                    remote: https://github.com/marco-viz/procgen-augmented-rl.git
+                host: Kurts-MacBook-Pro.local
+                memory:
+                    total: "8589934592"
+                os: macOS-26.2-x86_64-i386-64bit
+                program: /Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py
+                python: CPython 3.10.18
+                root: /Users/anniev18/Desktop/CS234/procgen-augmented-rl
+                startedAt: "2026-03-09T04:46:03.417012Z"
+                writerId: e0r16m9z604tz7hnkc5k5qfh5yc7r83a
+        m: []
+        python_version: 3.10.18
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+            "3":
+                - 2
+                - 13
+                - 15
+                - 16
+                - 61
+            "4": 3.10.18
+            "5": 0.25.0
+            "12": 0.25.0
+            "13": darwin-x86_64
+algo:
+    value: IQL
+batch_size:
+    value: 512
+beta:
+    value: 3
+data_source:
+    value: NPZ(manifest=data/stage1_datasets_L40/shift4_scale_0p9_1p1/manifest.json)
+device:
+    value: mps
+exp_adv_max:
+    value: 100
+expectile:
+    value: 0.7
+gamma:
+    value: 0.99
+hidden:
+    value: 256
+lr_actor:
+    value: 0.0005
+lr_q:
+    value: 0.0005
+lr_v:
+    value: 0.0005
+n_actions:
+    value: 15
+run_name:
+    value: iql_best_vs_bc_L40_top3_seed0_steps20k/iql_shift4_scale_0p9_1p1
+seed:
+    value: 0
+steps:
+    value: 20000
+target_tau:
+    value: 0.005
