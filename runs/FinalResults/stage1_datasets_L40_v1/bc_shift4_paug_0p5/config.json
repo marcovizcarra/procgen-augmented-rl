@@ -1,0 +1,12 @@
+{
+  "run_name": "stage1_datasets_L40/bc_shift4_paug_0p5",
+  "steps": 20000,
+  "batch_size": 256,
+  "lr": 0.0003,
+  "seed": 0,
+  "device": "mps",
+  "n_actions": 15,
+  "data_source": "NPZ(manifest=data/stage1_datasets_L40/shift4_paug_0p5/manifest.json)",
+  "ckpt_path": "runs/stage1_datasets_L40/bc_shift4_paug_0p5/bc_ckpt.pt",
+  "elapsed_sec": 375.3707220554352
+}

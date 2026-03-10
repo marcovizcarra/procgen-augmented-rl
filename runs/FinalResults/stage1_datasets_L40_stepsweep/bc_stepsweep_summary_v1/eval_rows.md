@@ -1,0 +1,28 @@
+# BC Step Sweep — All Eval Rows
+
+| variant | train_steps | train_seed | eval_seed | train_mean | train_std | test_mean | test_std | gen_gap | ckpt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline_none | 10000 | 0 | 0 | 0.0 | 0.0 | 1.8 | 3.842 | 1.8 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps10000_tr0/bc_ckpt.pt |
+| baseline_none | 10000 | 1 | 0 | 0.0 | 0.0 | 1.9 | 3.923 | 1.9 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps10000_tr1/bc_ckpt.pt |
+| baseline_none | 10000 | 2 | 0 | 0.0 | 0.0 | 1.35 | 3.417 | 1.35 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps10000_tr2/bc_ckpt.pt |
+| baseline_none | 20000 | 0 | 0 | 0.0 | 0.0 | 1.15 | 3.19 | 1.15 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps20000_tr0/bc_ckpt.pt |
+| baseline_none | 20000 | 1 | 0 | 0.0 | 0.0 | 1.7 | 3.756 | 1.7 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps20000_tr1/bc_ckpt.pt |
+| baseline_none | 20000 | 2 | 0 | 0.0 | 0.0 | 1.85 | 3.883 | 1.85 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps20000_tr2/bc_ckpt.pt |
+| baseline_none | 50000 | 0 | 0 | 0.0 | 0.0 | 2.2 | 4.142 | 2.2 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps50000_tr0/bc_ckpt.pt |
+| baseline_none | 50000 | 1 | 0 | 0.0 | 0.0 | 1.2 | 3.25 | 1.2 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps50000_tr1/bc_ckpt.pt |
+| baseline_none | 50000 | 2 | 0 | 0.0 | 0.0 | 1.1 | 3.129 | 1.1 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps50000_tr2/bc_ckpt.pt |
+| baseline_none | 100000 | 0 | 0 | 0.0 | 0.0 | 1.55 | 3.619 | 1.55 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps100000_tr0/bc_ckpt.pt |
+| baseline_none | 100000 | 1 | 0 | 0.0 | 0.0 | 1.5 | 3.571 | 1.5 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps100000_tr1/bc_ckpt.pt |
+| baseline_none | 100000 | 2 | 0 | 0.0 | 0.0 | 1.0 | 3.0 | 1.0 | runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps100000_tr2/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 10000 | 0 | 0 | 0.0 | 0.0 | 1.7 | 3.756 | 1.7 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps10000_tr0/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 10000 | 1 | 0 | 0.0 | 0.0 | 1.85 | 3.883 | 1.85 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps10000_tr1/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 10000 | 2 | 0 | 0.0 | 0.0 | 1.5 | 3.571 | 1.5 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps10000_tr2/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 20000 | 0 | 0 | 0.0 | 0.0 | 2.1 | 4.073 | 2.1 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps20000_tr0/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 20000 | 1 | 0 | 0.0 | 0.0 | 2.1 | 4.073 | 2.1 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps20000_tr1/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 20000 | 2 | 0 | 0.0 | 0.0 | 1.3 | 3.363 | 1.3 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps20000_tr2/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 50000 | 0 | 0 | 0.0 | 0.0 | 1.55 | 3.619 | 1.55 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps50000_tr0/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 50000 | 1 | 0 | 0.0 | 0.0 | 0.85 | 2.789 | 0.85 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps50000_tr1/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 50000 | 2 | 0 | 0.0 | 0.0 | 0.8 | 2.713 | 0.8 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps50000_tr2/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 100000 | 0 | 0 | 0.0 | 0.0 | 0.8 | 2.713 | 0.8 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps100000_tr0/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 100000 | 1 | 0 | 0.0 | 0.0 | 1.25 | 3.307 | 1.25 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps100000_tr1/bc_ckpt.pt |
+| shift4_scale_0p8_1p2 | 100000 | 2 | 0 | 0.0 | 0.0 | 0.85 | 2.789 | 0.85 | runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps100000_tr2/bc_ckpt.pt |

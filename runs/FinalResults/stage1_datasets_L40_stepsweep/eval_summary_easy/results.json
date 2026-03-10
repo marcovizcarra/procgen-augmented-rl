@@ -1,0 +1,24 @@
+[
+  {
+    "variant": "baseline_none",
+    "ckpt": "runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps100000_tr2/bc_ckpt.pt",
+    "train_mean": 10.0,
+    "train_std": 0.0,
+    "train_episodes": 200,
+    "test_mean": 2.3,
+    "test_std": 4.208,
+    "test_episodes": 200,
+    "gen_gap": -7.7
+  },
+  {
+    "variant": "shift4_scale_0p8_1p2",
+    "ckpt": "runs/stage1_datasets_L40_stepsweep/bc_shift4_scale_0p8_1p2_steps10000_tr2/bc_ckpt.pt",
+    "train_mean": 10.0,
+    "train_std": 0.0,
+    "train_episodes": 200,
+    "test_mean": 4.15,
+    "test_std": 4.927,
+    "test_episodes": 200,
+    "gen_gap": -5.85
+  }
+]

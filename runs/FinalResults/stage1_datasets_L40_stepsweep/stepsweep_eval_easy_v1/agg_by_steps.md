@@ -1,0 +1,12 @@
+# Eval-only Stepsweep — Aggregated by Steps
+
+| variant | train_steps | n_train_seeds | test_mean_avg | train_mean_avg | gen_gap_avg |
+| --- | --- | --- | --- | --- | --- |
+| baseline_none | 10000 | 3 | 3.872222 | 10.0 | -6.127778 |
+| baseline_none | 20000 | 3 | 3.211111 | 10.0 | -6.788889 |
+| baseline_none | 50000 | 3 | 3.0 | 10.0 | -7.0 |
+| baseline_none | 100000 | 3 | 2.322222 | 10.0 | -7.677778 |
+| shift4_scale_0p8_1p2 | 10000 | 3 | 4.022222 | 10.0 | -5.977778 |
+| shift4_scale_0p8_1p2 | 20000 | 3 | 2.638889 | 10.0 | -7.361111 |
+| shift4_scale_0p8_1p2 | 50000 | 3 | 1.977778 | 10.0 | -8.022222 |
+| shift4_scale_0p8_1p2 | 100000 | 3 | 1.461111 | 10.0 | -8.538889 |
