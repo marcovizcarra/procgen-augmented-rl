@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
 """
-Evaluate CQL Q-network checkpoints in Procgen CoinRun.
+Evaluate CQL Q-network checkpoints by rolling out the policy in unseen 
+levels in Procgen CoinRun.
+
 Policy is derived as argmax_a Q(s,a).
 """
 
 import argparse
 import random
 import time
+from pathlib import Path
 
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-try:
-    from tqdm.auto import tqdm
-except Exception:
-    tqdm = None
+import wandb
+from tqdm.auto import tqdm
 
 
 def set_global_seeds(seed: int) -> None:
+    """
+    Set seeds for Python, NumPy, and PyTorch for reproducibility.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -29,6 +32,9 @@ def set_global_seeds(seed: int) -> None:
 
 
 def seed_env(env, seed: int):
+    """
+    Seeding environment for reproducibility.
+    """
     try:
         out = env.reset(seed=seed)
         return out[0] if isinstance(out, tuple) else out
@@ -54,6 +60,9 @@ def seed_env(env, seed: int):
 
 
 def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
+    """
+    Transform observations to BCHW float32 in [0,1].
+    """
     x = torch.from_numpy(obs)
     if x.ndim == 3:
         if x.shape[-1] == 3:
@@ -82,6 +91,9 @@ def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
 
 
 class ConvEncoder(nn.Module):
+    """
+    Simple CNN for our environment. This is the same across all algorithms. 
+    """
     def __init__(self, hidden: int = 512):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
@@ -103,6 +115,9 @@ class ConvEncoder(nn.Module):
 
 
 class DiscreteQ(nn.Module):
+    """
+    Discrete Q-network for our environment. 
+    """
     def __init__(self, n_actions: int = 15, hidden: int = 512):
         super().__init__()
         self.enc = ConvEncoder(hidden=hidden)
@@ -113,6 +128,9 @@ class DiscreteQ(nn.Module):
 
 
 def _extract_q_state_dict(ckpt: dict) -> dict:
+    """
+
+    """
     if "q1_state_dict" in ckpt and isinstance(ckpt["q1_state_dict"], dict):
         return ckpt["q1_state_dict"]
     if "q_state_dict" in ckpt and isinstance(ckpt["q_state_dict"], dict):
@@ -162,13 +180,15 @@ def run_eval(env, qnet, device, episodes: int, desc: str = "", progress: bool = 
     pbar = tqdm(total=episodes, desc=desc or "eval", dynamic_ncols=True) if use_tqdm else None
     last_print = time.time()
 
+    # roll out learned policy for N episodes 
     while len(returns) < episodes:
         x = to_chw_float01(obs).to(device)
         with torch.no_grad():
+            # get action from Q-network
             q = qnet(x)
             action = int(torch.argmax(q, dim=-1).item())
 
-        obs, r, done, _ = step_env(env, action)
+        obs, r, done, _ = step_env(env, action) # take step in environment
         ep_ret += r
         total_steps += 1
 
@@ -205,12 +225,18 @@ def main():
     p.add_argument("--ckpt", required=True)
     p.add_argument("--episodes", type=int, default=50)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    p.add_argument("--train_start", type=int, default=0)
-    p.add_argument("--train_levels", type=int, default=500)
+    # p.add_argument("--train_start", type=int, default=0)
+    # p.add_argument("--train_levels", type=int, default=500)
     p.add_argument("--test_start", type=int, default=500)
     p.add_argument("--test_levels", type=int, default=500)
     p.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
     p.add_argument("--no-progress", action="store_true")
+    p.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging.")
+    p.add_argument("--wandb-project", type=str, default="procgen-augmented-rl")
+    p.add_argument("--wandb-entity", type=str, default=None)
+    p.add_argument("--wandb-run-name", type=str, default=None)
+    p.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
+    p.add_argument("--wandb-tags", type=str, default="", help="Comma-separated tags, e.g. cql,eval")
     args = p.parse_args()
 
     set_global_seeds(args.seed)
@@ -219,12 +245,32 @@ def main():
     ckpt = torch.load(args.ckpt, map_location=device)
     qnet = build_q_for_checkpoint(ckpt, device=device)
 
-    env_train = gym.make(
-        "procgen:procgen-coinrun-v0",
-        start_level=args.train_start,
-        num_levels=args.train_levels,
-        distribution_mode=args.distribution_mode,
-    )
+    wb_run = None
+    if args.wandb:
+        if wandb is None:
+            raise RuntimeError("W&B logging requested but `wandb` is not installed.")
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+        default_eval_name = f"eval_{Path(args.ckpt).parent.name}"
+        wb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_run_name or default_eval_name,
+            mode=args.wandb_mode,
+            tags=tags or None,
+            config={
+                "algo": "CQL",
+                "ckpt": args.ckpt,
+                "seed": args.seed,
+                "episodes": args.episodes,
+                "device": str(device),
+                # "train_start": args.train_start,
+                # "train_levels": args.train_levels,
+                "test_start": args.test_start,
+                "test_levels": args.test_levels,
+                "distribution_mode": args.distribution_mode,
+            },
+        )
+
     env_test = gym.make(
         "procgen:procgen-coinrun-v0",
         start_level=args.test_start,
@@ -233,17 +279,29 @@ def main():
     )
 
     try:
-        seed_env(env_train, args.seed)
         seed_env(env_test, args.seed + 1)
 
-        mean_tr, std_tr = run_eval(env_train, qnet, device, args.episodes, desc="TRAIN", progress=(not args.no_progress))
+        # mean_tr, std_tr = run_eval(env_train, qnet, device, args.episodes, desc="TRAIN", progress=(not args.no_progress))
         mean_te, std_te = run_eval(env_test, qnet, device, args.episodes, desc="TEST ", progress=(not args.no_progress))
 
-        print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
+        # print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
         print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
+        if wb_run is not None:
+            wandb.log(
+                {
+                    # "eval/train_mean_return": float(mean_tr),
+                    # "eval/train_std_return": float(std_tr),
+                    "eval/test_mean_return": float(mean_te),
+                    "eval/test_std_return": float(std_te),
+                    # "eval/generalization_gap": float(mean_te - mean_tr),
+                    "eval/episodes": int(args.episodes),
+                }
+            )
     finally:
-        env_train.close()
+        # env_train.close()
         env_test.close()
+        if wb_run is not None:
+            wb_run.finish()
 
 
 if __name__ == "__main__":

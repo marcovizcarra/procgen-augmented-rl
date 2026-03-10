@@ -2,8 +2,7 @@
 """
 Minimal offline CQL trainer for Procgen CoinRun datasets (discrete actions).
 
-Separate from BC/IQL pipelines:
-- Input: Stage-1 NPZ datasets (preferred) or Gen-DGRL stream (fallback)
+- Input: Stage-1 NPZ datasets or Gen-DGRL stream (fallback)
 - Output: runs/<run-name>/cql_ckpt.pt
 """
 
@@ -17,11 +16,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-try:
-    from tqdm.auto import trange
-except Exception:
-    trange = None
+import wandb
+from tqdm.auto import trange
 
 try:
     from torchrl.data.datasets import GenDGRLExperienceReplay
@@ -30,6 +26,9 @@ except Exception:
 
 
 class ConvEncoder(nn.Module):
+    """
+    Simple CNN for our environment. This is the same across all algorithms. 
+    """
     def __init__(self, hidden: int = 512):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
@@ -39,13 +38,13 @@ class ConvEncoder(nn.Module):
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         if obs.dtype == torch.uint8:
-            x = obs.float() / 255.0
+            x = obs.float() / 255.0 # normalize pixel values to [0,1]
         else:
             x = obs
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.reshape(x.shape[0], -1)
+        x = x.reshape(x.shape[0], -1) # flatten bc Linear layer expects 2D input
         x = F.relu(self.fc(x))
         return x
 
@@ -61,6 +60,9 @@ class DiscreteQ(nn.Module):
 
 
 def pick_device(device_arg: str) -> torch.device:
+    """
+    Pick device to use for training
+    """
     if device_arg != "auto":
         return torch.device(device_arg)
     if torch.cuda.is_available():
@@ -82,12 +84,18 @@ def _fmt_time(seconds: float) -> str:
 
 
 def soft_update(target: nn.Module, source: nn.Module, tau: float) -> None:
+    """
+    Update the 
+    """
     with torch.no_grad():
         for tp, sp in zip(target.parameters(), source.parameters()):
             tp.data.mul_(1.0 - tau).add_(sp.data, alpha=tau)
 
 
 def load_manifest(manifest_path: Path) -> Dict:
+    """
+    Helper function to load the dataset for training.
+    """
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
@@ -96,6 +104,9 @@ def iter_npz_batches(
     batch_size: int,
     seed: int = 0,
 ) -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+    """ 
+    Helper function to iterate over the dataset in batches.
+    """
     rng = np.random.default_rng(seed)
     manifest = load_manifest(manifest_path)
     root = manifest_path.parent
@@ -188,6 +199,14 @@ def main() -> None:
     p.add_argument("--lr-q", type=float, default=3e-4)
     p.add_argument("--lr-cql-alpha", type=float, default=1e-4, help="LR for Lagrange alpha (if enabled).")
     p.add_argument("--log-every", type=int, default=200)
+
+    # optional Weights & Biases logging
+    p.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging.")
+    p.add_argument("--wandb-project", type=str, default="procgen-augmented-rl")
+    p.add_argument("--wandb-entity", type=str, default=None)
+    p.add_argument("--wandb-run-name", type=str, default=None)
+    p.add_argument("--wandb-mode", type=str, default="online", choices=["online", "offline", "disabled"])
+    p.add_argument("--wandb-tags", type=str, default="", help="Comma-separated tags, e.g. cql,stage1")
     args = p.parse_args()
     if args.temp <= 0:
         raise ValueError("--temp must be > 0")
@@ -212,16 +231,21 @@ def main() -> None:
         data_iter = iter_gendgrl_batches(dataset_id, batch_size=args.batch_size, seed=args.seed, download=True)
         data_desc = f"GenDGRL({dataset_id})"
 
+    # use double q-learning strategy to avoid being overly optimistic about action values
     q1 = DiscreteQ(n_actions=args.n_actions, hidden=args.hidden).to(device)
     q2 = DiscreteQ(n_actions=args.n_actions, hidden=args.hidden).to(device)
+    # init target networks 
     q1_targ = DiscreteQ(n_actions=args.n_actions, hidden=args.hidden).to(device)
     q2_targ = DiscreteQ(n_actions=args.n_actions, hidden=args.hidden).to(device)
     q1_targ.load_state_dict(q1.state_dict())
     q2_targ.load_state_dict(q2.state_dict())
 
+    # use basic Adam optimizer 
     opt_q = torch.optim.Adam(list(q1.parameters()) + list(q2.parameters()), lr=args.lr_q)
     log_cql_alpha = None
     opt_cql_alpha = None
+
+    # (optional) Lagrange CQL 
     if args.with_lagrange:
         log_cql_alpha = torch.zeros(1, device=device, requires_grad=True)
         opt_cql_alpha = torch.optim.Adam([log_cql_alpha], lr=args.lr_cql_alpha)
@@ -229,6 +253,38 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Run: {args.run_name} | steps={args.steps} | batch_size={args.batch_size} | seed={args.seed}")
     print(f"Data: {data_desc}")
+
+    # W&B logging 
+    wb_run = None
+    if args.wandb:
+        tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
+        wb_run = wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_run_name or args.run_name,
+            mode=args.wandb_mode,
+            tags=tags or None,
+            config={
+                "algo": "CQL",
+                "run_name": args.run_name,
+                "steps": args.steps,
+                "batch_size": args.batch_size,
+                "seed": args.seed,
+                "device": str(device),
+                "n_actions": args.n_actions,
+                "hidden": args.hidden,
+                "gamma": args.gamma,
+                "target_tau": args.target_tau,
+                "cql_alpha": args.cql_alpha,
+                "temp": args.temp,
+                "min_q_version": args.min_q_version,
+                "with_lagrange": args.with_lagrange,
+                "lagrange_thresh": args.lagrange_thresh,
+                "lr_q": args.lr_q,
+                "lr_cql_alpha": args.lr_cql_alpha,
+                "data_source": data_desc,
+            },
+        )
 
     start_time = time.time()
     if trange is not None:
@@ -250,7 +306,7 @@ def main() -> None:
         with torch.no_grad():
             q_next = torch.min(q1_targ(next_obs), q2_targ(next_obs))
             next_v = q_next.max(dim=1).values
-            target = rew + args.gamma * (1.0 - done) * next_v
+            target = rew + args.gamma * (1.0 - done) * next_v # bellman target
 
         q1_all = q1(obs)
         q2_all = q2(obs)
@@ -259,16 +315,17 @@ def main() -> None:
 
         bellman = F.mse_loss(q1_data, target) + F.mse_loss(q2_data, target)
 
+        # 3 different versions of CQL penalty
         if args.min_q_version == 1:
-            # Standard discrete CQL(H): temp * logsumexp(Q/temp) - Q(s,a_data)
+            # standard discrete CQL(H): temp * logsumexp(Q/temp) - Q(s,a_data)
             cql1 = (args.temp * torch.logsumexp(q1_all / args.temp, dim=1) - q1_data).mean()
             cql2 = (args.temp * torch.logsumexp(q2_all / args.temp, dim=1) - q2_data).mean()
         elif args.min_q_version == 2:
-            # Mean-Q variant (weaker conservative penalty)
+            # mean-Q variant (weaker conservative penalty)
             cql1 = (q1_all.mean(dim=1) - q1_data).mean()
             cql2 = (q2_all.mean(dim=1) - q2_data).mean()
         else:
-            # Max-Q variant (stronger penalty on largest competing action value)
+            # max-Q variant (stronger penalty on largest competing action value)
             cql1 = (q1_all.max(dim=1).values - q1_data).mean()
             cql2 = (q2_all.max(dim=1).values - q2_data).mean()
         cql_pen = cql1 + cql2
@@ -282,6 +339,7 @@ def main() -> None:
             cql_alpha = torch.tensor(args.cql_alpha, device=device)
             q_loss = bellman + args.cql_alpha * cql_pen
 
+        # update Q-networks
         opt_q.zero_grad(set_to_none=True)
         q_loss.backward()
         opt_q.step()
@@ -329,6 +387,19 @@ def main() -> None:
                     f"bellman={bellman_avg:.4f} cql={cql_avg:.4f} q={q_avg:.4f} alpha={alpha_avg:.3f} "
                     f"sps={sps:.1f} eta={_fmt_time(eta)}",
                     flush=True,
+                )
+            if wb_run is not None:
+                wandb.log(
+                    {
+                        "train/step": step,
+                        "train/bellman_loss": bellman_avg,
+                        "train/cql_penalty": cql_avg,
+                        "train/q_loss": q_avg,
+                        "train/cql_alpha": alpha_avg,
+                        "train/steps_per_sec": float(sps),
+                        "train/elapsed_sec": float(elapsed),
+                    },
+                    step=step,
                 )
 
     run_dir = Path("runs") / args.run_name
@@ -380,6 +451,17 @@ def main() -> None:
     }
     (run_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     print(f"Saved checkpoint: {ckpt_path} (elapsed {_fmt_time(cfg['elapsed_sec'])})")
+
+    if wb_run is not None:
+        wandb.log(
+            {
+                "train/final_step": args.steps,
+                "train/total_elapsed_sec": float(cfg["elapsed_sec"]),
+                "artifacts/ckpt_path": str(ckpt_path),
+            },
+            step=args.steps,
+        )
+        wb_run.finish()
 
 
 if __name__ == "__main__":

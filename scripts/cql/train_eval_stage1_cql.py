@@ -2,7 +2,6 @@
 """
 Train + evaluate CQL policies for all Stage-1 dataset variants.
 
-This is intentionally separate from BC and IQL orchestration.
 Outputs are written to:
   runs/<run_group>/stage1_cql_train_eval_summary/
 """
@@ -18,9 +17,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
-TRAIN_RE = re.compile(
-    r"TRAIN\s+levels:\s+mean_return=([0-9\.\-eE]+)\s+std=([0-9\.\-eE]+)\s+\(episodes=([0-9]+)\)"
-)
+# TRAIN_RE = re.compile(
+#     r"TRAIN\s+levels:\s+mean_return=([0-9\.\-eE]+)\s+std=([0-9\.\-eE]+)\s+\(episodes=([0-9]+)\)"
+# )
 TEST_RE = re.compile(
     r"TEST\s+levels:\s+mean_return=([0-9\.\-eE]+)\s+std=([0-9\.\-eE]+)\s+\(episodes=([0-9]+)\)"
 )
@@ -37,20 +36,20 @@ def discover_variants(datasets_root: Path) -> List[Path]:
 
 
 def parse_eval(output: str) -> Dict[str, float]:
-    m1 = TRAIN_RE.search(output)
+    # m1 = TRAIN_RE.search(output)
     m2 = TEST_RE.search(output)
-    if not m1 or not m2:
-        raise RuntimeError("Could not parse eval output. Expected TRAIN/TEST lines from eval_cql_procgen.py")
-    train_mean, train_std, train_eps = float(m1.group(1)), float(m1.group(2)), int(m1.group(3))
+    if not m2:
+        raise RuntimeError("Could not parse eval output. Expected TEST lines from eval_cql_procgen.py")
+    # train_mean, train_std, train_eps = float(m1.group(1)), float(m1.group(2)), int(m1.group(3))
     test_mean, test_std, test_eps = float(m2.group(1)), float(m2.group(2)), int(m2.group(3))
     return {
-        "train_mean": train_mean,
-        "train_std": train_std,
-        "train_episodes": train_eps,
+        # "train_mean": train_mean,
+        # "train_std": train_std,
+        # "train_episodes": train_eps,
         "test_mean": test_mean,
         "test_std": test_std,
         "test_episodes": test_eps,
-        "gen_gap": test_mean - train_mean,
+        # "gen_gap": test_mean - train_mean,
     }
 
 
@@ -58,7 +57,7 @@ def to_markdown_table(rows: List[Dict]) -> str:
     if not rows:
         return "# Stage-1 CQL Train+Eval Summary\n\nNo results.\n"
 
-    headers = ["variant", "train_mean", "train_std", "test_mean", "test_std", "gen_gap", "ckpt"]
+    headers = ["variant", "test_mean", "test_std", "ckpt"]
     lines = ["# Stage-1 CQL Train+Eval Summary\n"]
     lines.append("| " + " | ".join(headers) + " |")
     lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
@@ -68,8 +67,8 @@ def to_markdown_table(rows: List[Dict]) -> str:
             + " | ".join(
                 [
                     str(r.get("variant", "")),
-                    f'{r.get("train_mean", float("nan")):.3f}',
-                    f'{r.get("train_std", float("nan")):.3f}',
+                    # f'{r.get("train_mean", float("nan")):.3f}',
+                    # f'{r.get("train_std", float("nan")):.3f}',
                     f'{r.get("test_mean", float("nan")):.3f}',
                     f'{r.get("test_std", float("nan")):.3f}',
                     f'{r.get("gen_gap", float("nan")):.3f}',
@@ -102,7 +101,12 @@ def run_training(
     lagrange_thresh: float,
     lr_q: float,
     lr_cql_alpha: float,
-    train_script: str = "scripts/train_cql.py",
+    wandb: bool,
+    wandb_project: str,
+    wandb_entity: Optional[str],
+    wandb_mode: str,
+    wandb_tags: str,
+    train_script: str = "scripts/cql/train_cql.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
 ) -> Tuple[Path, bool, float]:
@@ -134,6 +138,14 @@ def run_training(
     ]
     if with_lagrange:
         cmd.append("--with-lagrange")
+    if wandb:
+        cmd += ["--wandb"]
+        cmd += ["--wandb-project", str(wandb_project)]
+        if wandb_entity:
+            cmd += ["--wandb-entity", str(wandb_entity)]
+        cmd += ["--wandb-mode", str(wandb_mode)]
+        if wandb_tags.strip():
+            cmd += ["--wandb-tags", str(wandb_tags.strip())]
 
     start = time.time()
     if verbose:
@@ -161,13 +173,18 @@ def run_evaluation(
     ckpt: Path,
     episodes: int,
     seed: int,
-    train_start: int,
-    train_levels: int,
+    # train_start: int,
+    # train_levels: int,
     test_start: int,
     test_levels: int,
     distribution_mode: str,
     extra_eval_args: List[str],
-    eval_script: str = "scripts/eval_cql_procgen.py",
+    wandb: bool,
+    wandb_project: str,
+    wandb_entity: Optional[str],
+    wandb_mode: str,
+    wandb_tags: str,
+    eval_script: str = "scripts/cql/eval_cql_procgen.py",
     logs_dir: Optional[Path] = None,
     verbose: bool = False,
 ) -> Tuple[Dict[str, float], float]:
@@ -177,12 +194,20 @@ def run_evaluation(
         "--ckpt", str(ckpt),
         "--episodes", str(episodes),
         "--seed", str(seed),
-        "--train_start", str(train_start),
-        "--train_levels", str(train_levels),
+        # "--train_start", str(train_start),
+        # "--train_levels", str(train_levels),
         "--test_start", str(test_start),
         "--test_levels", str(test_levels),
         "--distribution_mode", str(distribution_mode),
     ] + list(extra_eval_args)
+    if wandb:
+        cmd += ["--wandb"]
+        cmd += ["--wandb-project", str(wandb_project)]
+        if wandb_entity:
+            cmd += ["--wandb-entity", str(wandb_entity)]
+        cmd += ["--wandb-mode", str(wandb_mode)]
+        if wandb_tags.strip():
+            cmd += ["--wandb-tags", str(wandb_tags.strip())]
 
     start = time.time()
     log_path = None
@@ -239,8 +264,8 @@ def main() -> None:
     ap.add_argument("--lr-cql-alpha", type=float, default=1e-4)
 
     ap.add_argument("--episodes", type=int, default=200)
-    ap.add_argument("--train_start", type=int, default=0)
-    ap.add_argument("--train_levels", type=int, default=500)
+    # ap.add_argument("--train_start", type=int, default=0)
+    # ap.add_argument("--train_levels", type=int, default=500)
     ap.add_argument("--test_start", type=int, default=500)
     ap.add_argument("--test_levels", type=int, default=500)
     ap.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
@@ -248,6 +273,12 @@ def main() -> None:
 
     ap.add_argument("--only", default=None)
     ap.add_argument("--verbose", action="store_true")
+
+    ap.add_argument("--wandb", action="store_true", help="Enable W&B in train/eval subprocesses.")
+    ap.add_argument("--wandb-project", default="procgen-augmented-rl")
+    ap.add_argument("--wandb-entity", default=None)
+    ap.add_argument("--wandb-mode", default="online", choices=["online", "offline", "disabled"])
+    ap.add_argument("--wandb-tags", default="", help="Comma-separated tags passed to train/eval subprocesses.")
     args = ap.parse_args()
 
     runs_root = Path(args.runs_root)
@@ -266,6 +297,7 @@ def main() -> None:
     variants_dir = summary_root / "variants"
     logs_dir = summary_root / "logs"
 
+    # validate that we have variant datasets to train on
     variants = discover_variants(datasets_root)
     if args.only:
         allow = {x.strip() for x in args.only.split(",") if x.strip()}
@@ -305,6 +337,11 @@ def main() -> None:
             lagrange_thresh=args.lagrange_thresh,
             lr_q=args.lr_q,
             lr_cql_alpha=args.lr_cql_alpha,
+            wandb=args.wandb,
+            wandb_project=args.wandb_project,
+            wandb_entity=args.wandb_entity,
+            wandb_mode=args.wandb_mode,
+            wandb_tags=args.wandb_tags,
             logs_dir=None if args.verbose else logs_dir,
             verbose=args.verbose,
         )
@@ -313,12 +350,17 @@ def main() -> None:
             ckpt=ckpt,
             episodes=args.episodes,
             seed=args.seed,
-            train_start=args.train_start,
-            train_levels=args.train_levels,
+            # train_start=args.train_start,
+            # train_levels=args.train_levels,
             test_start=args.test_start,
             test_levels=args.test_levels,
             distribution_mode=args.distribution_mode,
             extra_eval_args=extra_eval_args,
+            wandb=args.wandb,
+            wandb_project=args.wandb_project,
+            wandb_entity=args.wandb_entity,
+            wandb_mode=args.wandb_mode,
+            wandb_tags=args.wandb_tags,
             logs_dir=None if args.verbose else logs_dir,
             verbose=args.verbose,
         )
@@ -346,8 +388,8 @@ def main() -> None:
             "train_skipped": skipped,
             "train_elapsed_sec": float(train_elapsed),
             "episodes": args.episodes,
-            "train_start": args.train_start,
-            "train_levels": args.train_levels,
+            # "train_start": args.train_start,
+            # "train_levels": args.train_levels,
             "test_start": args.test_start,
             "test_levels": args.test_levels,
             "distribution_mode": args.distribution_mode,
