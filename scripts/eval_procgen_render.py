@@ -1,0 +1,459 @@
+#!/usr/bin/env python3
+"""
+Evaluate a trained policy checkpoint in Procgen CoinRun and optionally render frames.
+
+Runs rollouts on:
+- Train levels: start_level=0,   num_levels=500
+- Test  levels: start_level=500, num_levels=500
+
+Examples
+--------
+Basic eval:
+  python scripts/eval_procgen_render.py \
+    --ckpt runs/bc_min/bc_ckpt.pt \
+    --episodes 50
+
+Eval + save rendered test episodes:
+  python scripts/eval_procgen_render.py \
+    --ckpt runs/bc_min/bc_ckpt.pt \
+    --episodes 20 \
+    --render \
+    --render_split test \
+    --render_episodes 3 \
+    --save_dir renders/bc_min_test
+
+Eval + save GIFs:
+  python scripts/eval_procgen_render.py \
+    --ckpt runs/bc_min/bc_ckpt.pt \
+    --episodes 10 \
+    --render \
+    --render_split test \
+    --render_episodes 2 \
+    --save_gif \
+    --save_dir renders/bc_min_test
+"""
+
+import argparse
+import random
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import gym
+from PIL import Image
+
+try:
+    from tqdm.auto import tqdm
+except Exception:
+    tqdm = None
+
+try:
+    import imageio.v2 as imageio
+except Exception:
+    imageio = None
+
+
+def set_global_seeds(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def seed_env(env, seed: int):
+    """
+    Best-effort environment seeding across gym / gymnasium variants.
+    Returns the initial observation if reset(seed=...) is supported, else None.
+    """
+    try:
+        out = env.reset(seed=seed)
+        return out[0] if isinstance(out, tuple) else out
+    except TypeError:
+        pass
+
+    try:
+        env.seed(seed)
+    except Exception:
+        pass
+
+    try:
+        env.action_space.seed(seed)
+    except Exception:
+        pass
+
+    try:
+        env.observation_space.seed(seed)
+    except Exception:
+        pass
+
+    return None
+
+
+def to_chw_float01(obs: np.ndarray) -> torch.Tensor:
+    """
+    Convert Procgen observation(s) to BCHW float32 in [0,1].
+
+    Supported input shapes:
+    - HWC   -> BCHW
+    - CHW   -> BCHW
+    - BHWC  -> BCHW
+    - BCHW  -> BCHW
+    """
+    x = torch.from_numpy(obs)
+
+    if x.ndim == 3:
+        if x.shape[-1] == 3:          # HWC
+            x = x.permute(2, 0, 1).unsqueeze(0)
+        elif x.shape[0] == 3:         # CHW
+            x = x.unsqueeze(0)
+        else:
+            raise ValueError(f"Unexpected 3D obs shape: {tuple(obs.shape)}")
+
+    elif x.ndim == 4:
+        if x.shape[-1] == 3:          # BHWC
+            x = x.permute(0, 3, 1, 2)
+        elif x.shape[1] == 3:         # BCHW
+            pass
+        else:
+            raise ValueError(f"Unexpected 4D obs shape: {tuple(obs.shape)}")
+    else:
+        raise ValueError(f"Unexpected obs rank/shape: ndim={x.ndim}, shape={tuple(obs.shape)}")
+
+    if x.dtype == torch.uint8:
+        x = x.float() / 255.0
+    else:
+        x = x.float()
+        if x.max() > 1.0:
+            x = x / 255.0
+
+    return x
+
+
+class SmallCNN(nn.Module):
+    """Original eval architecture (net.* + head.* state_dict keys)."""
+    def __init__(self, n_actions=15):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 32, 8, stride=4), nn.ReLU(),
+            nn.Conv2d(32, 64, 4, stride=2), nn.ReLU(),
+            nn.Conv2d(64, 64, 3, stride=1), nn.ReLU(),
+            nn.Flatten(),
+        )
+        with torch.no_grad():
+            dummy = torch.zeros(1, 3, 64, 64)
+            feat_dim = self.net(dummy).shape[-1]
+        self.head = nn.Linear(feat_dim, n_actions)
+
+    def forward(self, x):
+        return self.head(self.net(x))
+
+
+class CNNPolicy(nn.Module):
+    """Matches scripts/train_bc_min.py checkpoints (conv1/2/3 + fc + head keys)."""
+    def __init__(self, n_actions=15, hidden=512):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc = nn.Linear(64 * 4 * 4, hidden)
+        self.head = nn.Linear(hidden, n_actions)
+
+    def forward(self, x):
+        if x.dtype == torch.uint8:
+            x = x.float() / 255.0
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = x.reshape(x.shape[0], -1)
+        x = F.relu(self.fc(x))
+        return self.head(x)
+
+
+def _strip_module_prefix(sd: dict) -> dict:
+    if not sd:
+        return sd
+    if all(k.startswith("module.") for k in sd.keys()):
+        return {k[len("module."):]: v for k, v in sd.items()}
+    return sd
+
+
+def _extract_state_dict(ckpt: dict) -> dict:
+    for k in ("model_state_dict", "state_dict", "model"):
+        if k in ckpt and isinstance(ckpt[k], dict):
+            return _strip_module_prefix(ckpt[k])
+    if isinstance(ckpt, dict) and all(isinstance(v, torch.Tensor) for v in ckpt.values()):
+        return _strip_module_prefix(ckpt)
+    raise KeyError("Could not find a model state_dict in checkpoint.")
+
+
+def _infer_n_actions(ckpt: dict, sd: dict) -> int:
+    if "head.weight" in sd:
+        return int(sd["head.weight"].shape[0])
+    if "n_actions" in ckpt:
+        return int(ckpt["n_actions"])
+    return 15
+
+
+def build_model_for_checkpoint(ckpt: dict, device: torch.device) -> nn.Module:
+    sd = _extract_state_dict(ckpt)
+    n_actions = _infer_n_actions(ckpt, sd)
+
+    if any(k.startswith("net.") for k in sd.keys()):
+        model = SmallCNN(n_actions=n_actions).to(device)
+    elif "conv1.weight" in sd:
+        hidden = int(sd["fc.weight"].shape[0]) if "fc.weight" in sd else 512
+        model = CNNPolicy(n_actions=n_actions, hidden=hidden).to(device)
+    else:
+        first_keys = list(sd.keys())[:12]
+        raise RuntimeError(f"Unknown checkpoint format; cannot infer model. First keys: {first_keys}")
+
+    model.load_state_dict(sd, strict=True)
+    model.eval()
+    return model
+
+
+def reset_env(env):
+    out = env.reset()
+    return out[0] if isinstance(out, tuple) else out
+
+
+def step_env(env, action):
+    out = env.step(action)
+    if len(out) == 5:
+        obs, r, term, trunc, info = out
+        done = bool(term or trunc)
+    else:
+        obs, r, done, info = out
+        done = bool(done)
+    return obs, float(r), done, info
+
+
+def obs_to_uint8_hwc(obs: np.ndarray) -> np.ndarray:
+    """
+    Convert observation to uint8 HWC image for saving.
+    """
+    arr = np.asarray(obs)
+
+    if arr.ndim == 4:
+        if arr.shape[0] != 1:
+            raise ValueError(f"Expected single observation, got shape {arr.shape}")
+        arr = arr[0]
+
+    if arr.ndim != 3:
+        raise ValueError(f"Expected HWC/CHW image, got shape {arr.shape}")
+
+    if arr.shape[0] == 3 and arr.shape[-1] != 3:
+        arr = np.transpose(arr, (1, 2, 0))  # CHW -> HWC
+
+    if arr.dtype != np.uint8:
+        arr = arr.astype(np.float32)
+        if arr.max() <= 1.0:
+            arr = arr * 255.0
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+
+    return arr
+
+
+def save_episode_frames(frames, out_dir: Path, prefix: str = "frame"):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for i, frame in enumerate(frames):
+        Image.fromarray(frame).save(out_dir / f"{prefix}_{i:05d}.png")
+
+
+def save_gif(frames, gif_path: Path, fps: int = 12):
+    if imageio is None:
+        raise RuntimeError("imageio is not installed. Install it or disable --save_gif.")
+    gif_path.parent.mkdir(parents=True, exist_ok=True)
+    duration_ms = int(1000 / max(1, fps))
+    imageio.mimsave(gif_path, frames, duration=duration_ms / 1000.0)
+
+
+def run_eval(
+    env,
+    model,
+    device,
+    episodes: int,
+    desc: str = "",
+    progress: bool = True,
+    print_every: int = 25,
+    render: bool = False,
+    render_episodes: int = 0,
+    save_dir: Path | None = None,
+    save_gif_flag: bool = False,
+    gif_fps: int = 12,
+):
+    """
+    Evaluate policy for N episodes with optional rendering.
+    Rendering uses the observation frames directly, which for Procgen CoinRun
+    are already the environment images.
+    """
+    returns = []
+    obs = reset_env(env)
+    ep_ret = 0.0
+    ep_idx = 0
+    total_steps = 0
+    t0 = time.time()
+
+    current_frames = []
+    collect_this_episode = render and (ep_idx < render_episodes)
+
+    if collect_this_episode:
+        current_frames.append(obs_to_uint8_hwc(obs))
+
+    use_tqdm = progress and (tqdm is not None)
+    pbar = None
+    if use_tqdm:
+        pbar = tqdm(total=episodes, desc=desc or "eval", dynamic_ncols=True)
+    last_print = time.time()
+
+    while len(returns) < episodes:
+        x = to_chw_float01(obs).to(device)
+        with torch.no_grad():
+            logits = model(x)
+            action = int(torch.argmax(logits, dim=-1).item())
+
+        obs, r, done, _ = step_env(env, action)
+        ep_ret += r
+        total_steps += 1
+
+        if collect_this_episode:
+            current_frames.append(obs_to_uint8_hwc(obs))
+
+        if done:
+            returns.append(ep_ret)
+
+            if collect_this_episode and save_dir is not None:
+                split_dir = save_dir / f"{desc.strip().lower()}_episode_{ep_idx:03d}"
+                save_episode_frames(current_frames, split_dir)
+                if save_gif_flag:
+                    save_gif(current_frames, save_dir / f"{desc.strip().lower()}_episode_{ep_idx:03d}.gif", fps=gif_fps)
+
+            if pbar is not None:
+                elapsed = time.time() - t0
+                mean_ret = float(np.mean(returns))
+                sps = total_steps / max(1e-9, elapsed)
+                pbar.update(1)
+                pbar.set_postfix(mean=f"{mean_ret:.2f}", last=f"{ep_ret:.2f}", sps=f"{sps:.0f}")
+            else:
+                if progress:
+                    now = time.time()
+                    if (len(returns) % print_every == 0) or (now - last_print > 5.0):
+                        elapsed = now - t0
+                        mean_ret = float(np.mean(returns))
+                        sps = total_steps / max(1e-9, elapsed)
+                        print(
+                            f"[{desc}] episodes {len(returns)}/{episodes}  "
+                            f"mean={mean_ret:.3f}  last={ep_ret:.3f}  sps={sps:.0f}",
+                            flush=True,
+                        )
+                        last_print = now
+
+            ep_ret = 0.0
+            ep_idx += 1
+            obs = reset_env(env)
+            current_frames = []
+            collect_this_episode = render and (ep_idx < render_episodes)
+            if collect_this_episode:
+                current_frames.append(obs_to_uint8_hwc(obs))
+
+    if pbar is not None:
+        pbar.close()
+
+    return float(np.mean(returns)), float(np.std(returns))
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--ckpt", required=True)
+    p.add_argument("--episodes", type=int, default=50)
+    p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--train_start", type=int, default=0)
+    p.add_argument("--train_levels", type=int, default=500)
+    p.add_argument("--test_start", type=int, default=500)
+    p.add_argument("--test_levels", type=int, default=500)
+    p.add_argument("--distribution_mode", default="hard", choices=["easy", "hard"])
+    p.add_argument("--no-progress", action="store_true", help="Disable progress indicator.")
+
+    # Rendering options
+    p.add_argument("--render", action="store_true", help="Save rendered CoinRun frames from observations.")
+    p.add_argument("--render_split", choices=["train", "test", "both"], default="test")
+    p.add_argument("--render_episodes", type=int, default=2, help="How many episodes to save per selected split.")
+    p.add_argument("--save_dir", type=str, default="renders/coinrun_eval")
+    p.add_argument("--save_gif", action="store_true", help="Also export GIFs for rendered episodes.")
+    p.add_argument("--gif_fps", type=int, default=12)
+
+    args = p.parse_args()
+
+    set_global_seeds(args.seed)
+    device = torch.device(args.device)
+    save_dir = Path(args.save_dir)
+
+    ckpt = torch.load(args.ckpt, map_location=device)
+    model = build_model_for_checkpoint(ckpt, device=device)
+
+    env_train = gym.make(
+        "procgen:procgen-coinrun-v0",
+        start_level=args.train_start,
+        num_levels=args.train_levels,
+        distribution_mode=args.distribution_mode,
+    )
+    env_test = gym.make(
+        "procgen:procgen-coinrun-v0",
+        start_level=args.test_start,
+        num_levels=args.test_levels,
+        distribution_mode=args.distribution_mode,
+    )
+
+    try:
+        seed_env(env_train, args.seed)
+        seed_env(env_test, args.seed + 1)
+
+        render_train = args.render and args.render_split in ("train", "both")
+        render_test = args.render and args.render_split in ("test", "both")
+
+        mean_tr, std_tr = run_eval(
+            env_train,
+            model,
+            device,
+            args.episodes,
+            desc="TRAIN",
+            progress=(not args.no_progress),
+            render=render_train,
+            render_episodes=args.render_episodes,
+            save_dir=save_dir,
+            save_gif_flag=args.save_gif,
+            gif_fps=args.gif_fps,
+        )
+
+        mean_te, std_te = run_eval(
+            env_test,
+            model,
+            device,
+            args.episodes,
+            desc="TEST",
+            progress=(not args.no_progress),
+            render=render_test,
+            render_episodes=args.render_episodes,
+            save_dir=save_dir,
+            save_gif_flag=args.save_gif,
+            gif_fps=args.gif_fps,
+        )
+
+        print(f"TRAIN levels: mean_return={mean_tr:.3f} std={std_tr:.3f} (episodes={args.episodes})")
+        print(f"TEST  levels: mean_return={mean_te:.3f} std={std_te:.3f} (episodes={args.episodes})")
+
+        if args.render:
+            print(f"Saved rendered outputs to: {save_dir.resolve()}")
+
+    finally:
+        env_train.close()
+        env_test.close()
+
+
+if __name__ == "__main__":
+    main()
