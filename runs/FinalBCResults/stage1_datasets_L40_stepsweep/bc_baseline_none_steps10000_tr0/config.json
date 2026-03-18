@@ -1,0 +1,12 @@
+{
+  "run_name": "stage1_datasets_L40_stepsweep/bc_baseline_none_steps10000_tr0",
+  "steps": 10000,
+  "batch_size": 256,
+  "lr": 0.0003,
+  "seed": 0,
+  "device": "mps",
+  "n_actions": 15,
+  "data_source": "NPZ(manifest=data/stage1_datasets_L40/baseline_none/manifest.json)",
+  "ckpt_path": "runs/stage1_datasets_L40_stepsweep/bc_baseline_none_steps10000_tr0/bc_ckpt.pt",
+  "elapsed_sec": 229.5906400680542
+}

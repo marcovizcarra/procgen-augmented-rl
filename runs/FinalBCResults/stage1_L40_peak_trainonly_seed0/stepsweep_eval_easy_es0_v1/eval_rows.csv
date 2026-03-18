@@ -1,0 +1,9 @@
+variant,train_steps,train_seed,eval_seed,train_mean,train_std,test_mean,test_std,gen_gap,ckpt
+baseline_none,2000,0,0,10.0,0.0,4.35,4.958,-5.65,runs/stage1_L40_peak_trainonly_seed0/bc_baseline_none_steps2000_tr0/bc_ckpt.pt
+baseline_none,5000,0,0,10.0,0.0,4.05,4.909,-5.95,runs/stage1_L40_peak_trainonly_seed0/bc_baseline_none_steps5000_tr0/bc_ckpt.pt
+baseline_none,7000,0,0,10.0,0.0,4.2,4.936,-5.8,runs/stage1_L40_peak_trainonly_seed0/bc_baseline_none_steps7000_tr0/bc_ckpt.pt
+baseline_none,10000,0,0,10.0,0.0,4.1,4.918,-5.9,runs/stage1_L40_peak_trainonly_seed0/bc_baseline_none_steps10000_tr0/bc_ckpt.pt
+shift4_scale_0p8_1p2,2000,0,0,10.0,0.0,4.25,4.943,-5.75,runs/stage1_L40_peak_trainonly_seed0/bc_shift4_scale_0p8_1p2_steps2000_tr0/bc_ckpt.pt
+shift4_scale_0p8_1p2,5000,0,0,10.0,0.0,5.0,5.0,-5.0,runs/stage1_L40_peak_trainonly_seed0/bc_shift4_scale_0p8_1p2_steps5000_tr0/bc_ckpt.pt
+shift4_scale_0p8_1p2,7000,0,0,10.0,0.0,4.6,4.984,-5.4,runs/stage1_L40_peak_trainonly_seed0/bc_shift4_scale_0p8_1p2_steps7000_tr0/bc_ckpt.pt
+shift4_scale_0p8_1p2,10000,0,0,10.0,0.0,4.0,4.899,-6.0,runs/stage1_L40_peak_trainonly_seed0/bc_shift4_scale_0p8_1p2_steps10000_tr0/bc_ckpt.pt
