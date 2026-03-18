@@ -1,0 +1,97 @@
+CQL Experiments (Separate from BC/IQL)
+======================================
+
+This pipeline is isolated from BC and IQL:
+- Trainer: scripts/train_cql.py
+- Evaluator: scripts/eval_cql_procgen.py
+- Orchestrator: scripts/train_eval_stage1_cql.py
+- Checkpoints: runs/<run_group>/cql_<variant>/cql_ckpt.pt
+- Summaries: runs/<run_group>/stage1_cql_train_eval_summary/
+
+1) Run all variants on L40 (matched budget with BC)
+---------------------------------------------------
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group compare_bc_cql_L40_seed0_steps20k_ep200 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
+
+2) Run all variants on level_1 (matched budget with BC)
+-------------------------------------------------------
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets \
+  --runs-root runs \
+  --run-group compare_bc_cql_L1_seed0_steps20k_ep200 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 1 \
+  --test_start 1 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
+
+3) Baseline-only quick check
+----------------------------
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group cql_baseline_L40_seed0_steps20k \
+  --only baseline_none \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --skip-existing
+
+4) Common CQL hyperparameter sweeps
+-----------------------------------
+- cql_alpha: 0.5, 1.0, 2.0, 5.0
+- target_tau: 0.005 (default), 0.01
+- temp: 1.0 (default), 2.0
+- min_q_version: 1 (logsumexp), 2 (mean-Q), 3 (max-Q)
+- with_lagrange + lagrange_thresh (auto-tune conservative weight)
+
+Example:
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group cql_L40_seed0_steps20k_alpha2 \
+  --only baseline_none,shift_pad4,shift4_scale_0p9_1p1 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --cql-alpha 2.0 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+Example (Lagrange + temp + min_q_version):
+python -B scripts/train_eval_stage1_cql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group cql_L40_seed0_steps20k_lagrange \
+  --only baseline_none,shift4_scale_0p9_1p1 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-q 3e-4 \
+  --lr-cql-alpha 1e-4 \
+  --temp 1.0 \
+  --min-q-version 1 \
+  --with-lagrange \
+  --lagrange-thresh 10.0 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0

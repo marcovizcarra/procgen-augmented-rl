@@ -1,0 +1,9 @@
+variant,train_steps,n_train_seeds,test_mean_avg,train_mean_avg,gen_gap_avg
+baseline_none,6000,3,4.12,10.0,-5.88
+baseline_none,10000,3,3.923333,10.0,-6.076667
+shift4_blur3x3,6000,3,4.74,10.0,-5.26
+shift4_blur3x3,10000,3,4.35,10.0,-5.65
+shift4_scale_0p9_1p1,6000,3,4.573333,10.0,-5.426667
+shift4_scale_0p9_1p1,10000,3,4.123333,10.0,-5.876667
+shift_pad4,6000,3,4.576667,10.0,-5.423333
+shift_pad4,10000,3,4.323333,10.0,-5.676667

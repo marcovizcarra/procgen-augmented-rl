@@ -1,0 +1,12 @@
+{
+  "run_name": "stage1_L40_screen_2k6k10k_tr0/bc_shift4_scale_0p8_1p2_steps2000_tr0",
+  "steps": 2000,
+  "batch_size": 256,
+  "lr": 0.0003,
+  "seed": 0,
+  "device": "mps",
+  "n_actions": 15,
+  "data_source": "NPZ(manifest=data/stage1_datasets_L40/shift4_scale_0p8_1p2/manifest.json)",
+  "ckpt_path": "runs/stage1_L40_screen_2k6k10k_tr0/bc_shift4_scale_0p8_1p2_steps2000_tr0/bc_ckpt.pt",
+  "elapsed_sec": 51.06810402870178
+}

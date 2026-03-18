@@ -1,0 +1,1 @@
+IQL[iql_best_vs_bc_L40_rest8_seed0_steps20k/iql_shift4_jitter_0p2]: 100%|██████████| 20000/20000 [1:06:45<00:00,  4.99it/s, adv=-0.012, eta=0s, pi=0.1922, q=0.0098, sps=5.0, v=0.0005]         

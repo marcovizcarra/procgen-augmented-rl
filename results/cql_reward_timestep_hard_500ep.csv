@@ -1,0 +1,13 @@
+algorithm,reward_mean,reward_std,data_size,ep_len,data_dist
+BC, ,   ,20000,500,hard
+BC + augment, ,   ,20000,500,hard
+BC,  ,  ,100000,500,hard
+BC + augment,3.292,  ,100000,500,hard
+IQL, ,  ,20000,500,hard
+IQL + best augment, ,  ,20000,500,hard
+IQL, ,  ,100000,500,hard
+IQL + best augment, ,  ,100000,500,hard
+CQL,1.68,3.73866,20000,500,hard
+CQL + best augment, , ,20000,500,hard
+CQL, ,  ,100000,500,hard
+CQL + best augment, ,  ,100000,500,hard

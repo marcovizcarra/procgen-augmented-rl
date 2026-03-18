@@ -1,0 +1,7 @@
+IQL[iql_quick_align_lr3e-4_ex0.7_bs512_h256_b3_tau0p005_seed0/iql_baseline_none]:  19%|█▊        | 3741/20000 [07:57<34:35,  7.83it/s, adv=-0.037, eta=34m57s, pi=1.7682, q=0.0802, sps=7.8, v=0.0117]    
+Traceback (most recent call last):
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 455, in <module>
+    main()
+  File "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py", line 355, in main
+    stats["v"].append(float(v_loss.item()))
+KeyboardInterrupt

@@ -1,0 +1,57 @@
+{
+  "os": "macOS-26.2-x86_64-i386-64bit",
+  "python": "CPython 3.10.18",
+  "startedAt": "2026-03-08T07:12:42.839120Z",
+  "args": [
+    "--batch_size=512",
+    "--beta=3",
+    "--datasets_root=data/stage1_datasets_L40",
+    "--distribution_mode=hard",
+    "--episodes=200",
+    "--expectile=0.8",
+    "--hidden=256",
+    "--lr=0.0003",
+    "--run_group_prefix=wandb_iql_quick_align",
+    "--runs_root=runs",
+    "--seed=0",
+    "--target_tau=0.005",
+    "--test_levels=500",
+    "--test_start=40",
+    "--train_levels=40",
+    "--train_start=0",
+    "--train_steps=20000",
+    "--variant=baseline_none"
+  ],
+  "program": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/run_iql_wandb_sweep.py",
+  "codePath": "scripts/run_iql_wandb_sweep.py",
+  "codePathLocal": "scripts/run_iql_wandb_sweep.py",
+  "git": {
+    "remote": "https://github.com/marco-viz/procgen-augmented-rl.git",
+    "commit": "ae9b338bfbeef0596bcabf2d1bb74eea4dec3f15"
+  },
+  "email": "anniev18@stanford.edu",
+  "root": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl",
+  "host": "Kurts-MacBook-Pro.local",
+  "executable": "/Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "466605490176"
+    }
+  },
+  "memory": {
+    "total": "8589934592"
+  },
+  "apple": {
+    "name": "Unknown",
+    "ecpuCores": 4,
+    "pcpuCores": 4,
+    "gpuCores": 10,
+    "memoryGb": 8,
+    "swapTotalBytes": "6442450944",
+    "ramTotalBytes": "8589934592"
+  },
+  "writerId": "xti5ltyrmpgvkbefp14ptxa9dwlkao56"
+}

@@ -1,0 +1,6 @@
+Overlapping variants: 3
+Mean delta_test (IQL-BC): -1.1333
+Mean delta_train (IQL-BC): -0.9500
+Mean delta_gen_gap (IQL-BC): -0.1833
+Best delta_test variant: shift4_noise_0p02
+Worst delta_test variant: shift4_scale_0p8_1p2

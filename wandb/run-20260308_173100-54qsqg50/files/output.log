@@ -1,0 +1,1 @@
+IQL[iql_best_vs_bc_L40_top3_seed0_steps20k/iql_shift4_noise_0p02]: 100%|██████████| 20000/20000 [1:35:01<00:00,  3.51it/s, adv=-0.013, eta=0s, pi=0.2466, q=0.0168, sps=3.5, v=0.0010]      

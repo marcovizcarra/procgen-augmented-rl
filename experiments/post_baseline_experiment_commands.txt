@@ -1,0 +1,149 @@
+Post-Baseline Experiment Commands (Augmentation-Focused)
+========================================================
+
+Assumption
+----------
+Assuming we already ran baseline experiments. This file runs augmentation-only follow-ups
+and keeps outputs separated by seed/run-group.
+
+Important
+---------
+- Use explicit --run-group for each seed so checkpoints and summaries never overwrite.
+- Keep train/eval settings identical to baseline settings for fair comparison.
+- If your partner used different hyperparameters, change them below globally.
+
+Shared Settings (edit once)
+---------------------------
+AUG_ONLY="shift_pad4,shift_pad8,shift4_blur3x3,shift4_cutout16,shift4_cutout24,shift4_jitter_0p2,shift4_jitter_0p4,shift4_noise_0p02,shift4_paug_0p5,shift4_scale_0p8_1p2,shift4_scale_0p9_1p1"
+TRAIN_STEPS=20000
+BATCH_SIZE=256
+LR=3e-4
+DEVICE=auto
+
+
+1) Main Augmentation Sweep on L40 (seed 0)
+------------------------------------------
+python -B scripts/train_eval_stage1.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_datasets_L40_aug_seed0 \
+  --only "shift_pad4,shift_pad8,shift4_blur3x3,shift4_cutout16,shift4_cutout24,shift4_jitter_0p2,shift4_jitter_0p4,shift4_noise_0p02,shift4_paug_0p5,shift4_scale_0p8_1p2,shift4_scale_0p9_1p1" \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr 3e-4 \
+  --device auto \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+Output summary:
+- runs/stage1_datasets_L40_aug_seed0/stage1_train_eval_summary/results.csv
+
+
+2) Seed Robustness for Top-3 Variants (L40)
+-------------------------------------------
+# After step (1), pick TOP3 from results.csv by test_mean and set TOP3 below.
+TOP3="shift_pad4,shift4_scale_0p9_1p1,shift4_jitter_0p2"
+
+for SEED in 1 2 3; do
+  python -B scripts/train_eval_stage1.py \
+    --datasets-root data/stage1_datasets_L40 \
+    --runs-root runs \
+    --run-group stage1_datasets_L40_top3_seed${SEED} \
+    --only "$TOP3" \
+    --train-steps $TRAIN_STEPS \
+    --batch-size $BATCH_SIZE \
+    --lr $LR \
+    --device $DEVICE \
+    --episodes 200 \
+    --train_start 0 --train_levels 40 \
+    --test_start 40 --test_levels 500 \
+    --seed ${SEED}
+done
+
+
+3) High-Confidence Re-Eval (1000 episodes, no retraining)
+---------------------------------------------------------
+# Re-evaluate each seed's checkpoints with more episodes.
+for SEED in 1 2 3; do
+  python -B scripts/eval_stage1_all.py \
+    --datasets-root data/stage1_datasets_L40 \
+    --runs-root runs \
+    --run-group stage1_datasets_L40_top3_seed${SEED} \
+    --only "$TOP3" \
+    --episodes 1000 \
+    --out-dir runs/stage1_datasets_L40_top3_seed${SEED}/stage1_eval_summary_ep1000
+
+done
+
+# Note:
+# If SEED=0 used run-group stage1_datasets_L40_aug_seed0 in step (1), run this too:
+python -B scripts/eval_stage1_all.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_datasets_L40_aug_seed0 \
+  --only "$TOP3" \
+  --episodes 1000 \
+  --out-dir runs/stage1_datasets_L40_aug_seed0/stage1_eval_summary_ep1000
+
+
+4) Cross-Dataset Transfer Check (level_1 vs level_40)
+------------------------------------------------------
+# Run same top variants on level_1 datasets to see if ranking is stable.
+for SEED in 0 1 2; do
+  python -B scripts/train_eval_stage1.py \
+    --datasets-root data/stage1_datasets \
+    --runs-root runs \
+    --run-group stage1_datasets_top3_seed${SEED} \
+    --only "$TOP3" \
+    --train-steps $TRAIN_STEPS \
+    --batch-size $BATCH_SIZE \
+    --lr $LR \
+    --device $DEVICE \
+    --episodes 200 \
+    --train_start 0 --train_levels 1 \
+    --test_start 1 --test_levels 500 \
+    --seed ${SEED}
+done
+
+
+5) Winner Ablation Grid (single-factor sweeps)
+----------------------------------------------
+# Edit get_stage1_variants() in scripts/build_stage1_datasets.py to add new strengths.
+# Rebuild datasets (example):
+python -B scripts/build_stage1_datasets.py \
+  --dataset-id coinrun-level_40_E \
+  --out-root data/stage1_datasets_L40_ablation \
+  --num-samples 20000 \
+  --batch-size 512 \
+  --shard-size 5000 \
+  --seed 0
+
+# Then run train+eval over ablation variants:
+python -B scripts/train_eval_stage1.py \
+  --datasets-root data/stage1_datasets_L40_ablation \
+  --runs-root runs \
+  --run-group stage1_datasets_L40_ablation_seed0 \
+  --train-steps $TRAIN_STEPS \
+  --batch-size $BATCH_SIZE \
+  --lr $LR \
+  --device $DEVICE \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+
+6) Final Reporting Table You Should Build
+-----------------------------------------
+For each variant report:
+- seed_mean_test
+- seed_std_test
+- train_mean
+- gen_gap = test_mean - train_mean
+- eval_episodes (200 or 1000)
+
+Collect from:
+- runs/<run_group>/stage1_train_eval_summary/results.csv
+- runs/<run_group>/stage1_eval_summary_ep1000/results.csv

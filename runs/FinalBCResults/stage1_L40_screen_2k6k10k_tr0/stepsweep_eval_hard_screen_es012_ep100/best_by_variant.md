@@ -1,0 +1,13 @@
+# Eval-only Stepsweep — Best Steps per Variant
+
+| variant | best_train_steps | best_test_mean_avg | best_train_mean_avg | best_gen_gap_avg |
+| --- | --- | --- | --- | --- |
+| shift4_scale_0p9_1p1 | 10000 | 2.333333 | 0.0 | 2.333333 |
+| shift4_noise_0p02 | 6000 | 2.3 | 0.0 | 2.3 |
+| shift4_jitter_0p2 | 2000 | 2.266667 | 0.0 | 2.266667 |
+| shift4_cutout16 | 10000 | 2.2 | 0.0 | 2.2 |
+| shift4_scale_0p8_1p2 | 6000 | 2.1 | 0.0 | 2.1 |
+| baseline_none | 6000 | 2.0 | 0.0 | 2.0 |
+| shift4_blur3x3 | 2000 | 2.0 | 0.0 | 2.0 |
+| shift4_paug_0p5 | 10000 | 1.866667 | 0.0 | 1.866667 |
+| shift_pad4 | 2000 | 1.866667 | 0.0 | 1.866667 |

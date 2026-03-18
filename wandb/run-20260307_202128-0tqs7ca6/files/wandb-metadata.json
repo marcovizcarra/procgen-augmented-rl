@@ -1,0 +1,80 @@
+{
+  "os": "macOS-26.2-x86_64-i386-64bit",
+  "python": "CPython 3.10.18",
+  "startedAt": "2026-03-08T04:21:28.972221Z",
+  "args": [
+    "--dataset-root",
+    "data/stage1_datasets_L40/baseline_none",
+    "--run-name",
+    "iql_tune_e0.7_b1.0_seed0/iql_baseline_none",
+    "--steps",
+    "20000",
+    "--batch-size",
+    "256",
+    "--seed",
+    "0",
+    "--device",
+    "auto",
+    "--hidden",
+    "512",
+    "--gamma",
+    "0.99",
+    "--expectile",
+    "0.7",
+    "--beta",
+    "1.0",
+    "--exp-adv-max",
+    "100.0",
+    "--target-tau",
+    "0.005",
+    "--lr-actor",
+    "0.0003",
+    "--lr-q",
+    "0.0003",
+    "--lr-v",
+    "0.0003",
+    "--wandb",
+    "--wandb-project",
+    "procgen-augmented-rl",
+    "--wandb-mode",
+    "online",
+    "--wandb-group",
+    "iql_hparam_tuning",
+    "--wandb-name",
+    "iql_tune_e0.7_b1.0_seed0_iql_baseline_none_seed0",
+    "--wandb-tags",
+    "iql,tuning,l40"
+  ],
+  "program": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/train_iql.py",
+  "codePath": "scripts/train_iql.py",
+  "codePathLocal": "scripts/train_iql.py",
+  "git": {
+    "remote": "https://github.com/marco-viz/procgen-augmented-rl.git",
+    "commit": "ae9b338bfbeef0596bcabf2d1bb74eea4dec3f15"
+  },
+  "email": "anacolme.18@gmail.com",
+  "root": "/Users/anniev18/Desktop/CS234/procgen-augmented-rl",
+  "host": "Kurts-MacBook-Pro.local",
+  "executable": "/Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python",
+  "cpu_count": 8,
+  "cpu_count_logical": 8,
+  "disk": {
+    "/": {
+      "total": "494384795648",
+      "used": "465543798784"
+    }
+  },
+  "memory": {
+    "total": "8589934592"
+  },
+  "apple": {
+    "name": "Unknown",
+    "ecpuCores": 4,
+    "pcpuCores": 4,
+    "gpuCores": 10,
+    "memoryGb": 8,
+    "swapTotalBytes": "6442450944",
+    "ramTotalBytes": "8589934592"
+  },
+  "writerId": "4s1bghe2u3pzmmajt96s7xr5e2cfwg5p"
+}

@@ -1,0 +1,43 @@
+program: scripts/run_iql_wandb_sweep.py
+method: bayes
+name: iql-quick-aligned-l40
+metric:
+  name: test_mean
+  goal: maximize
+parameters:
+  datasets_root:
+    value: data/stage1_datasets_L40
+  runs_root:
+    value: runs
+  variant:
+    value: baseline_none
+  run_group_prefix:
+    value: wandb_iql_quick_align
+  train_steps:
+    value: 20000
+  episodes:
+    value: 200
+  seed:
+    value: 0
+  train_start:
+    value: 0
+  train_levels:
+    value: 40
+  test_start:
+    value: 40
+  test_levels:
+    value: 500
+  distribution_mode:
+    value: hard
+  lr:
+    values: [0.0003, 0.0005]
+  expectile:
+    values: [0.7, 0.8]
+  beta:
+    values: [3.0]
+  target_tau:
+    values: [0.005]
+  batch_size:
+    values: [512]
+  hidden:
+    values: [256]

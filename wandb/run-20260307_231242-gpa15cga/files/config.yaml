@@ -1,0 +1,101 @@
+_wandb:
+    value:
+        cli_version: 0.25.0
+        e:
+            xti5ltyrmpgvkbefp14ptxa9dwlkao56:
+                apple:
+                    ecpuCores: 4
+                    gpuCores: 10
+                    memoryGb: 8
+                    name: Unknown
+                    pcpuCores: 4
+                    ramTotalBytes: "8589934592"
+                    swapTotalBytes: "6442450944"
+                args:
+                    - --batch_size=512
+                    - --beta=3
+                    - --datasets_root=data/stage1_datasets_L40
+                    - --distribution_mode=hard
+                    - --episodes=200
+                    - --expectile=0.8
+                    - --hidden=256
+                    - --lr=0.0003
+                    - --run_group_prefix=wandb_iql_quick_align
+                    - --runs_root=runs
+                    - --seed=0
+                    - --target_tau=0.005
+                    - --test_levels=500
+                    - --test_start=40
+                    - --train_levels=40
+                    - --train_start=0
+                    - --train_steps=20000
+                    - --variant=baseline_none
+                codePath: scripts/run_iql_wandb_sweep.py
+                codePathLocal: scripts/run_iql_wandb_sweep.py
+                cpu_count: 8
+                cpu_count_logical: 8
+                disk:
+                    /:
+                        total: "494384795648"
+                        used: "466605490176"
+                email: anniev18@stanford.edu
+                executable: /Users/anniev18/miniconda3/envs/procgen-rl-x64/bin/python
+                git:
+                    commit: ae9b338bfbeef0596bcabf2d1bb74eea4dec3f15
+                    remote: https://github.com/marco-viz/procgen-augmented-rl.git
+                host: Kurts-MacBook-Pro.local
+                memory:
+                    total: "8589934592"
+                os: macOS-26.2-x86_64-i386-64bit
+                program: /Users/anniev18/Desktop/CS234/procgen-augmented-rl/scripts/run_iql_wandb_sweep.py
+                python: CPython 3.10.18
+                root: /Users/anniev18/Desktop/CS234/procgen-augmented-rl
+                startedAt: "2026-03-08T07:12:42.839120Z"
+                writerId: xti5ltyrmpgvkbefp14ptxa9dwlkao56
+        m: []
+        python_version: 3.10.18
+        t:
+            "3":
+                - 2
+                - 14
+                - 62
+            "4": 3.10.18
+            "5": 0.25.0
+            "12": 0.25.0
+            "13": darwin-x86_64
+batch_size:
+    value: 512
+beta:
+    value: 3
+datasets_root:
+    value: data/stage1_datasets_L40
+distribution_mode:
+    value: hard
+episodes:
+    value: 200
+expectile:
+    value: 0.8
+hidden:
+    value: 256
+lr:
+    value: 0.0003
+run_group_prefix:
+    value: wandb_iql_quick_align
+runs_root:
+    value: runs
+seed:
+    value: 0
+target_tau:
+    value: 0.005
+test_levels:
+    value: 500
+test_start:
+    value: 40
+train_levels:
+    value: 40
+train_start:
+    value: 0
+train_steps:
+    value: 20000
+variant:
+    value: baseline_none

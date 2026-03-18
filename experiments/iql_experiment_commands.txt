@@ -1,0 +1,112 @@
+IQL Experiments (Separate from BC)
+==================================
+
+This pipeline is isolated from BC:
+- Trainer: scripts/train_iql.py
+- Evaluator: scripts/eval_iql_procgen.py
+- Orchestrator: scripts/train_eval_stage1_iql.py
+- Checkpoints: runs/<run_group>/iql_<variant>/iql_ckpt.pt
+- Summaries: runs/<run_group>/stage1_iql_train_eval_summary/
+
+1) Run all variants on L40 (seed 0)
+------------------------------------
+python -B scripts/train_eval_stage1_iql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_iql_L40_seed0 \
+  --train-steps 50000 \
+  --batch-size 256 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+2) Augmentation-only run (if baseline already done)
+---------------------------------------------------
+python -B scripts/train_eval_stage1_iql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_iql_L40_aug_seed0 \
+  --only shift_pad4,shift_pad8,shift4_blur3x3,shift4_cutout16,shift4_cutout24,shift4_jitter_0p2,shift4_jitter_0p4,shift4_noise_0p02,shift4_paug_0p5,shift4_scale_0p8_1p2,shift4_scale_0p9_1p1 \
+  --train-steps 50000 \
+  --batch-size 256 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+3) Top-3 variants across seeds
+------------------------------
+# Replace TOP3 after first leaderboard.
+TOP3="shift_pad4,shift4_scale_0p9_1p1,shift4_jitter_0p2"
+for SEED in 1 2 3; do
+  python -B scripts/train_eval_stage1_iql.py \
+    --datasets-root data/stage1_datasets_L40 \
+    --runs-root runs \
+    --run-group stage1_iql_L40_top3_seed${SEED} \
+    --only "$TOP3" \
+    --train-steps 50000 \
+    --batch-size 256 \
+    --episodes 200 \
+    --train_start 0 --train_levels 40 \
+    --test_start 40 --test_levels 500 \
+    --seed ${SEED}
+done
+
+4) Useful IQL hyperparameter knobs
+----------------------------------
+The orchestrator forwards these to trainer:
+- --expectile (default 0.7)
+- --beta (default 3.0)
+- --exp-adv-max (default 100.0)
+- --target-tau (default 0.005)
+- --lr-actor --lr-q --lr-v (default 3e-4 each)
+
+Example:
+python -B scripts/train_eval_stage1_iql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --run-group stage1_iql_L40_sweep_e08_b5 \
+  --only shift_pad4,shift4_scale_0p9_1p1 \
+  --expectile 0.8 --beta 5.0 \
+  --train-steps 50000 --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0
+
+5) Optional Weights & Biases logging
+------------------------------------
+# One-time setup:
+# pip install wandb
+# wandb login
+
+python -B scripts/train_eval_stage1_iql.py \
+  --datasets-root data/stage1_datasets_L40 \
+  --runs-root runs \
+  --run-group stage1_iql_L40_top3_seed0_wandb \
+  --only shift4_noise_0p02,shift4_scale_0p8_1p2,shift4_scale_0p9_1p1 \
+  --train-steps 20000 \
+  --batch-size 256 \
+  --lr-actor 3e-4 --lr-q 3e-4 --lr-v 3e-4 \
+  --episodes 200 \
+  --train_start 0 --train_levels 40 \
+  --test_start 40 --test_levels 500 \
+  --seed 0 \
+  --wandb \
+  --wandb-project procgen-augmented-rl \
+  --wandb-group iql_top3_compare \
+  --wandb-tags iql,coinrun,l40,top3
+
+6) Automated W&B sweep (quick aligned search)
+---------------------------------------------
+# 1) Login once
+# pip install wandb
+# wandb login
+
+# 2) Create sweep (copy returned sweep id)
+wandb sweep experiments/iql_wandb_quick_sweep.yaml
+
+# 3) Start an agent (run this in your x64 env)
+# Replace <entity>/<project>/<sweep_id> with printed value.
+wandb agent <entity>/procgen-augmented-rl/<sweep_id>
+
+# 4) Optional: launch multiple agents in separate terminals for parallel runs.

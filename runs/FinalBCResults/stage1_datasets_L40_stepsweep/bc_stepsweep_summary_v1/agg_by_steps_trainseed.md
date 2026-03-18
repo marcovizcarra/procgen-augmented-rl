@@ -1,0 +1,28 @@
+# BC Step Sweep — Aggregated by (Steps, Train Seed)
+
+| variant | train_steps | train_seed | n_eval_seeds | train_mean_avg | test_mean_avg | gen_gap_avg |
+| --- | --- | --- | --- | --- | --- | --- |
+| baseline_none | 10000 | 0 | 1 | 0.0 | 1.8 | 1.8 |
+| baseline_none | 10000 | 1 | 1 | 0.0 | 1.9 | 1.9 |
+| baseline_none | 10000 | 2 | 1 | 0.0 | 1.35 | 1.35 |
+| baseline_none | 20000 | 0 | 1 | 0.0 | 1.15 | 1.15 |
+| baseline_none | 20000 | 1 | 1 | 0.0 | 1.7 | 1.7 |
+| baseline_none | 20000 | 2 | 1 | 0.0 | 1.85 | 1.85 |
+| baseline_none | 50000 | 0 | 1 | 0.0 | 2.2 | 2.2 |
+| baseline_none | 50000 | 1 | 1 | 0.0 | 1.2 | 1.2 |
+| baseline_none | 50000 | 2 | 1 | 0.0 | 1.1 | 1.1 |
+| baseline_none | 100000 | 0 | 1 | 0.0 | 1.55 | 1.55 |
+| baseline_none | 100000 | 1 | 1 | 0.0 | 1.5 | 1.5 |
+| baseline_none | 100000 | 2 | 1 | 0.0 | 1.0 | 1.0 |
+| shift4_scale_0p8_1p2 | 10000 | 0 | 1 | 0.0 | 1.7 | 1.7 |
+| shift4_scale_0p8_1p2 | 10000 | 1 | 1 | 0.0 | 1.85 | 1.85 |
+| shift4_scale_0p8_1p2 | 10000 | 2 | 1 | 0.0 | 1.5 | 1.5 |
+| shift4_scale_0p8_1p2 | 20000 | 0 | 1 | 0.0 | 2.1 | 2.1 |
+| shift4_scale_0p8_1p2 | 20000 | 1 | 1 | 0.0 | 2.1 | 2.1 |
+| shift4_scale_0p8_1p2 | 20000 | 2 | 1 | 0.0 | 1.3 | 1.3 |
+| shift4_scale_0p8_1p2 | 50000 | 0 | 1 | 0.0 | 1.55 | 1.55 |
+| shift4_scale_0p8_1p2 | 50000 | 1 | 1 | 0.0 | 0.85 | 0.85 |
+| shift4_scale_0p8_1p2 | 50000 | 2 | 1 | 0.0 | 0.8 | 0.8 |
+| shift4_scale_0p8_1p2 | 100000 | 0 | 1 | 0.0 | 0.8 | 0.8 |
+| shift4_scale_0p8_1p2 | 100000 | 1 | 1 | 0.0 | 1.25 | 1.25 |
+| shift4_scale_0p8_1p2 | 100000 | 2 | 1 | 0.0 | 0.85 | 0.85 |

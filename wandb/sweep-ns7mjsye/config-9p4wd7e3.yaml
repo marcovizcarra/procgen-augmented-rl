@@ -1,0 +1,38 @@
+wandb_version: 1
+
+batch_size:
+  value: 512
+beta:
+  value: 3
+datasets_root:
+  value: data/stage1_datasets_L40
+distribution_mode:
+  value: hard
+episodes:
+  value: 200
+expectile:
+  value: 0.7
+hidden:
+  value: 256
+lr:
+  value: 0.0005
+run_group_prefix:
+  value: wandb_iql_quick_align
+runs_root:
+  value: runs
+seed:
+  value: 0
+target_tau:
+  value: 0.005
+test_levels:
+  value: 500
+test_start:
+  value: 40
+train_levels:
+  value: 40
+train_start:
+  value: 0
+train_steps:
+  value: 20000
+variant:
+  value: baseline_none

@@ -1,0 +1,20 @@
+{
+  "run_name": "compare_bc_cql_iql_L40_baseline_seed0_steps100k_ep200/iql_baseline_none",
+  "seed": 0,
+  "steps": 100000,
+  "batch_size": 256,
+  "device": "mps",
+  "n_actions": 15,
+  "hidden": 512,
+  "gamma": 0.99,
+  "expectile": 0.7,
+  "beta": 3.0,
+  "exp_adv_max": 100.0,
+  "target_tau": 0.005,
+  "lr_actor": 0.0003,
+  "lr_q": 0.0003,
+  "lr_v": 0.0003,
+  "data_source": "NPZ(manifest=data/stage1_datasets_L40/baseline_none/manifest.json)",
+  "ckpt_path": "runs/compare_bc_cql_iql_L40_baseline_seed0_steps100k_ep200/iql_baseline_none/iql_ckpt.pt",
+  "elapsed_sec": 16707.30830693245
+}
