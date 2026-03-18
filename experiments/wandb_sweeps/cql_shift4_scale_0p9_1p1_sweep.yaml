@@ -1,0 +1,39 @@
+name: cql_shift4_scale_0p9_1p1_small
+program: scripts/cql/wandb_sweep_cql.py
+method: grid  
+metric:
+  name: eval/average_return
+  goal: maximize
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - --dataset-root
+  - data/stage1_datasets_L40_100k/shift4_scale_0p9_1p1
+  - --runs-root
+  - runs
+  - --run-group
+  - cql_shift4_scale_0p9_1p1_sweep
+  - --train-steps
+  - "100000"
+  - --episodes
+  - "500"
+  - --test_start
+  - "41"
+  - --test_levels
+  - "540"
+  - --seed
+  - "0"
+parameters:
+  cql_alpha:
+    values: [10.0, 5.0]
+  learning_rate:
+    values: [3e-4, 3e-5]
+  cql_lagrange:
+    values: [false]
+  lagrange_thresh:
+    values: [10.0]
+  batch_size:
+    values: [256]
+  gamma:
+    value: 0.99

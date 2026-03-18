@@ -1,0 +1,17 @@
+data_aug,algo,reward_mean,reward_std,steps,data_size
+baseline_none,CQL,0.64,2.45,6000,20000
+shift4_jitter_0p4,CQL,1.7,3.76,6000,20000
+shift4_jitter_0p2,CQL,0.88,2.83,6000,20000
+shift4_scale_0p8_1p2,CQL,0.28,1.65,6000,20000
+baseline_none,CQL,1.28,3.34,10000,20000
+shift4_jitter_0p4,CQL,1.22,3.27,10000,20000
+shift4_jitter_0p2,CQL,1.5,3.57,10000,20000
+shift4_scale_0p8_1p2,CQL,0.2,1.4,10000,20000
+baseline_none,CQL,0.68,2.52,20000,20000
+shift4_jitter_0p4,CQL,1.02,3.03,20000,20000
+shift4_jitter_0p2,CQL,0.82,2.74,20000,20000
+shift4_scale_0p8_1p2,CQL,0.62,2.41,20000,20000
+baseline_none,CQL,,,100000,20000
+shift4_jitter_0p4,CQL,,,100000,20000
+shift4_jitter_0p2,CQL,,,100000,20000
+shift4_scale_0p8_1p2,CQL,,,100000,20000

@@ -1,0 +1,43 @@
+name: cql_bayes_sweep
+program: scripts/cql/wandb_sweep_cql.py
+method: bayes
+metric:
+  name: eval/average_return
+  goal: maximize
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - --dataset-root
+  - data/stage1_datasets_L40/baseline_none
+  - --runs-root
+  - runs
+  - --run-group
+  - cql_bayes_sweep
+  - --train-steps
+  - "20000"
+  - --episodes
+  - "200"
+  - --train_start
+  - "0"
+  - --train_levels
+  - "40"
+  - --test_start
+  - "40"
+  - --test_levels
+  - "500"
+  - --seed
+  - "0"
+parameters:
+  cql_alpha:
+    values: [0.5, 1.0, 2.0, 4.0]  
+  cql_lagrange:
+    values: [false]
+  lagrange_thresh:
+    values: [10.0]
+  learning_rate:
+    values: [1e-4, 3e-4, 5e-4] 
+  batch_size:
+    values: [256]
+  gamma:
+    value: 0.99
